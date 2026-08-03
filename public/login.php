@@ -9,7 +9,6 @@ require_once __DIR__ . '/../includes/auth.php';
 
 startAppSession();
 
-// Already logged in → scoring form
 if (!empty($_SESSION['authenticated'])) {
     header('Location: /score.php');
     exit;
@@ -30,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             clearLoginAttempts($ip);
             session_regenerate_id(true);
             $_SESSION['authenticated'] = true;
-            // Rotate CSRF after privilege change
             unset($_SESSION['csrf_token']);
             header('Location: /score.php');
             exit;
@@ -53,12 +51,15 @@ $token = csrfToken();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Judge Login — Florida Sound Quality</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body>
-    <main>
+<body class="page-login">
+    <main class="login-panel">
         <h1>Florida Sound Quality</h1>
-        <p>Judge login</p>
+        <p class="lead">Judge login</p>
 
         <?php if ($error !== ''): ?>
             <p role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
@@ -66,16 +67,18 @@ $token = csrfToken();
 
         <form method="post" action="/login.php" autocomplete="off">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-            <label for="password">Password</label>
-            <input
-                type="password"
-                id="password"
-                name="password"
-                required
-                autofocus
-                autocomplete="current-password"
-            >
-            <button type="submit">Log in</button>
+            <div class="field">
+                <label for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    required
+                    autofocus
+                    autocomplete="current-password"
+                >
+            </div>
+            <button type="submit" class="btn-primary">Log in</button>
         </form>
     </main>
 </body>
