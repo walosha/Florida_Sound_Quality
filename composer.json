@@ -1,0 +1,13 @@
+{
+    "name": "florida-sound-quality/scoring-app",
+    "description": "Mobile-first car audio competition scoring web app",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "phpmailer/phpmailer": "^6.9",
+        "dompdf/dompdf": "^3.0"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

@@ -1,0 +1,59 @@
+/* Minimal Phase 1 styles — full design in Phase 3 */
+body {
+    font-family: Georgia, "Times New Roman", serif;
+    margin: 0;
+    padding: 2rem 1.25rem;
+    background: #1a1a1a;
+    color: #f0e6d8;
+}
+
+main {
+    max-width: 24rem;
+    margin: 0 auto;
+}
+
+h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin: 0 0 0.35rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+}
+
+input[type="password"] {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 0.85rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    background: #2a2a2a;
+    color: #f0e6d8;
+    border: 0;
+}
+
+button {
+    display: block;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    background: #c45c26;
+    color: #1a1a1a;
+    border: 0;
+    cursor: pointer;
+}
+
+a {
+    color: #e8a05c;
+}
+
+[role="alert"] {
+    color: #e07070;
+    margin-bottom: 1rem;
+}
