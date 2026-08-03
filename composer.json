@@ -3,7 +3,9 @@
     "description": "Mobile-first car audio competition scoring web app",
     "type": "project",
     "require": {
-        "php": ">=8.0",
+        "php": ">=8.2",
+        "ext-mbstring": "*",
+        "ext-pdo_mysql": "*",
         "phpmailer/phpmailer": "^6.9",
         "dompdf/dompdf": "^3.0"
     },
