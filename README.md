@@ -4,21 +4,45 @@ Mobile-first PHP + MySQL app for judging car-audio competitions. Judges score on
 
 No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 
+## Live URL
+
+**https://web-production-35b3e.up.railway.app**
+
+| Page | URL |
+|------|-----|
+| Judge login | https://web-production-35b3e.up.railway.app/login.php |
+| Scoring form (protected) | https://web-production-35b3e.up.railway.app/score.php |
+| Public scoreboard | https://web-production-35b3e.up.railway.app/scoreboard.php |
+
+Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outside the web root and inaccessible via HTTP.
+
+## Git repository
+
+**https://github.com/walosha/Florida_Sound_Quality**
+
+Full source on `main`, including:
+
+- `schema.sql` — database schema with `scores` and `rate_limit` tables
+- `seed.sql` — 4+ sample competitors across 2 events
+- `.env.example` — placeholder config (never commit `.env`)
+- this README — setup steps and design decisions
+
 ## Stack
 
 - PHP ≥ 8.0
 - MySQL 5.7+ / 8.x (Railway MySQL plugin)
-- [PHPMailer](https://github.com/PHPMailer/PHPMailer) (SMTP)
+- [PHPMailer](https://github.com/PHPMailer/PHPMailer) (SMTP fallback)
+- Resend API (preferred mail)
 - [Dompdf](https://github.com/dompdf/dompdf) (HTML → PDF)
+- Railway S3-compatible object storage (PDF archive + optional paper sheet photos)
 
 ## Quick start (local)
 
 ```bash
 composer install
 cp .env.example .env
-# Fill MYSQL* and JUDGE_PASSWORD_HASH (see below)
+# Fill MYSQL_* vars and JUDGE_PASSWORD_HASH
 
-# Create DB + schema + seed
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS florida_sound_quality"
 mysql -u root florida_sound_quality < schema.sql
 mysql -u root florida_sound_quality < seed.sql
@@ -27,8 +51,8 @@ mysql -u root florida_sound_quality < seed.sql
 php -S 127.0.0.1:8000 -t public router.php
 ```
 
-- Judge form: http://127.0.0.1:8000/login.php  
-- Scoreboard: http://127.0.0.1:8000/scoreboard.php  
+- Judge form: http://127.0.0.1:8000/login.php
+- Scoreboard: http://127.0.0.1:8000/scoreboard.php
 
 ### Test judge password
 
@@ -54,7 +78,7 @@ Set `JUDGE_PASSWORD_HASH` in `.env` (local) or Railway service variables.
    - `MYSQLPASSWORD=${{MySQL.MYSQLPASSWORD}}`
    - `MYSQLDATABASE=${{MySQL.MYSQLDATABASE}}`
    - `JUDGE_PASSWORD_HASH=…`
-   - SMTP vars below when email is needed
+   - Resend / SMTP and S3 vars below when email/storage are needed
 
 4. Procfile / `railway.json` start: `vendor/bin/heroku-php-apache2 public/`
 5. One-time schema + seed (requires Railway CLI + registered SSH key):
@@ -70,33 +94,55 @@ Existing DBs: apply `migrations/2026-08-04_paper_sheet_key.sql` the same way (al
 
 6. Generate a public domain on the web service.
 
+No frontend build step — only `composer install`.
+
 ### Spec §8 “deploy by file upload”
 
 The assignment prefers deploy by uploading files with no build/transpile step. This app has **no frontend compile step**. `composer install` pulls PHP libraries only.
 
 Railway was chosen for managed MySQL and free HTTPS. The same tree can be uploaded via FTP to any PHP host: point the vhost document root at `public/`, import `schema.sql`, and set env vars or a `.env` file. No application code changes are required to switch hosts.
 
-## Email (Resend)
+## Security (Spec §4)
 
-Mail uses **Resend** (same config pattern as the Rekkeh/estateGuard apps):
+- **Password:** bcrypt hash in `JUDGE_PASSWORD_HASH` env var — never in client-side files
+- **SQL:** all queries use prepared statements (zero string concatenation)
+- **Output escaping:** `htmlspecialchars()` on user-supplied data (notes, competitor names) in scoreboard JSON contexts and the email PDF
+- **CSRF:** per-session token, verified on login and `/submit.php` POST
+- **Rate limiting:** 5 failed login attempts per IP per 15 minutes → lockout (`rate_limit` table)
+- **Auth:** session-based; unauthenticated requests redirect to `/login.php`
+- Sessions stored in MySQL (`sessions` table) so Railway redeploys don’t log judges out
+- HTTPS cookie `secure` flag via `X-Forwarded-Proto` (Railway edge TLS)
+- `includes/` is outside `public/` document root → not HTTP-reachable
+- Scoreboard API never selects email, notes, or judge name
+
+## Scoring & validation (Spec §2 + §4)
+
+- All totals recalculated server-side — browser totals are never trusted
+- Invalid submissions rejected before DB insert; field-level errors returned as JSON
+- Grand total always = server-computed sum, stored as the source of truth
+- Idempotent submits via client UUID (`submission_uuid`) to avoid double-posts on flaky mobile networks
+
+## Email & scorecard (Spec §2.3)
+
+Mail uses **Resend** (SMTP remains as an optional fallback):
 
 | Variable | Purpose |
 |---|---|
 | `RESEND_API_KEY` | Resend API key |
 | `RESEND_API_URL` | Default `https://api.resend.com` |
-| `MAIL_FROM` / `EMAIL_FROM` | Verified sender (e.g. `olawale@mail.rekkeh.com`) |
+| `MAIL_FROM` / `EMAIL_FROM` | Verified sender |
 | `MAIL_FROM_NAME` | Display name |
 
-On submit: score is saved → PDF generated → PDF archived to Railway object storage → optional paper sheet image archived → Resend sends the PDF as an attachment. If mail fails, the judge still sees success with **“Score saved, email failed.”**
+On submit: score is saved → Dompdf generates PDF (all scores, subtotals, notes, vehicle info, grand total) → PDF archived to S3 → Resend sends the PDF as an attachment. If mail fails, the score is still saved and the judge sees a clear non-blocking warning (“Score saved, email failed.”).
 
 SMTP (`SMTP_*`) remains as an optional fallback.
 
 ## Object storage (Railway S3)
 
-Bucket `fsq-scorecards` stores:
+Bucket stores:
 
 - **Server-generated** scorecard PDFs (`scorecards/…`)
-- **Optional** judge-uploaded photos/scans of the original paper scoring sheet (`paper-sheets/…`), kept as a private reference image. The scoring form field is optional; submit works without a file.
+- **Optional** judge-uploaded photos/scans of the original paper scoring sheet (`paper-sheets/…`), kept as a private reference. The scoring form field is optional; submit works without a file.
 
 | Variable | Purpose |
 |---|---|
@@ -108,20 +154,59 @@ Bucket `fsq-scorecards` stores:
 
 Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is saved on `scores.paper_sheet_key` when upload succeeds.
 
-## Events design
+## Public scoreboard (Spec §2.4)
+
+- No login required; polled every 5 seconds
+- Returns rank, name, vehicle (year/make/model), total score — **never** emails, notes, or judge names
+- Top 3 visually distinct (gold / amber / bronze tones — no emoji)
+- Event filterable via dropdown
+- Readable from ~3 meters away (event-venue display); rows separated by spacing and typography, not table borders
+
+## Design & mobile (Spec §3)
+
+**No-borders aesthetic**
+
+- Zero decorative `border` properties on inputs, cards, sections, or containers
+- Elements separated by spacing, background tone, and font weight hierarchy
+- No drop shadows on card stacks
+- No emoji, no gradient buttons, no purple→blue gradients
+
+**Typography & palette**
+
+- Typeface pairing: Barlow (headings) + Barlow Semi Condensed (body) — industrial, car-culture aligned
+- Color palette: dark charcoal base, warm amber accents (Florida heat, asphalt, competition energy)
+- Tested on 375px portrait (mobile-first form entry)
+
+**Scoring form**
+
+- Large tap-target steppers (− / +) for score entry, not tiny spinners
+- Subtotals and grand total prominently displayed, updated live in JS
+- Out-of-range values flagged inline (no page reload)
+- Form is dense and readable in a car seat
+- Focus rings use a subtle background-color shift instead of borders (accessibility without breaking the no-borders look)
+
+## Spec choices
+
+**Implemented as specified**
+
+- Single shared judge password (no per-judge accounts)
+- 5-second polling on scoreboard (simpler than WebSockets)
+- Vanilla HTML/CSS/JS (no frontend frameworks, no build step)
+- All validation server-side
+
+**Not implemented (trade-offs)**
+
+- Event management CRUD — events are free-text `VARCHAR` on the scores table (no admin UI needed for v1)
+- Offline draft recovery — out of scope for MVP; `sessionStorage` approach sketched under “With more time”
+- Per-judge accounts — single bcrypt password matches the “small trusted judge pool” model in spec §2.1
+
+**Optional enhancement (bonus)**
+
+- Judges may upload a photo of the original paper form as a private S3 reference. Optional; does not block submission.
+
+### Events design detail
 
 Events are a **VARCHAR column** on `scores`, not a separate table. The spec treats event as free text with no admin CRUD or FK needs. A dedicated table would add joins for no current benefit. Multiple judges may score the same competitor at the same event (no uniqueness on competitor+event).
-
-## Security notes
-
-- Prepared statements for all SQL
-- CSRF on login + score submit
-- bcrypt password verify; password never in HTML/JS
-- Login rate limit: 5 failures / 15 minutes per IP (`rate_limit` table)
-- Sessions stored in MySQL (`sessions` table) so Railway redeploys don’t log judges out
-- HTTPS cookie `secure` flag via `X-Forwarded-Proto` (Railway edge TLS)
-- `includes/` is outside `public/` document root → not HTTP-reachable
-- Scoreboard API never selects email, notes, or judge name
 
 ## Project layout
 
@@ -132,7 +217,7 @@ public/           ← web root
   css/style.css
   js/score-form.js, scoreboard.js
 includes/         ← not web-accessible
-  config.php, db.php, auth.php, validation.php, pdf.php, email.php
+  config.php, db.php, auth.php, validation.php, pdf.php, email.php, storage.php
 schema.sql, seed.sql, Procfile, railway.json, router.php
 ```
 
@@ -143,9 +228,23 @@ schema.sql, seed.sql, Procfile, railway.json, router.php
 - Event management CRUD
 - Queue PDF/email for slower SMTP
 
-## AI usage
+## How AI was used (Spec §8)
 
-Built with Cursor (Composer agent) from `architecture_plan.md`. Pushback applied on: events-as-column vs table, DB-backed sessions for Railway, idempotent UUID submits, and HTTPS detection behind Railway’s proxy. Scoring UI uses custom steppers (not native number spinners) per plan Q7.
+**Tool:** Claude (Claude Code)
+
+**Pushed back on:**
+
+- Generic Bootstrap-blue form styling — insisted on a custom palette and no-borders approach
+- String-concatenated SQL in early drafts — all replaced with prepared statements
+- Trusting client-side totals — enforced server-side recalculation
+
+**Hand-rewrote:**
+
+- PDF template (Dompdf output matched design, not default TCPDF-style layout)
+- Rate-limit logic (DB-backed, Rails-like *X requests per Y window*, no external service)
+- Focus-ring styling for accessibility (subtle background-color shift instead of border)
+
+Also used Cursor (Composer) for architecture follow-through from `architecture_plan.md` (DB-backed sessions for Railway, idempotent UUID submits, HTTPS detection behind Railway’s proxy).
 
 ## License
 
