@@ -101,15 +101,26 @@ define('DB_NAME', $mysqlDb ?? 'florida_sound_quality');
 
 define('JUDGE_PASSWORD_HASH', env('JUDGE_PASSWORD_HASH') ?? '');
 
-// --- Mail (Phase 4) ----------------------------------------------------------
+// --- Mail (Resend preferred; SMTP fallback) ---------------------------------
 
+define('RESEND_API_KEY', env('RESEND_API_KEY') ?? '');
+define('RESEND_API_URL', rtrim(env('RESEND_API_URL') ?? 'https://api.resend.com', '/'));
 define('SMTP_HOST', env('SMTP_HOST') ?? '');
 define('SMTP_PORT', (int) (env('SMTP_PORT') ?? '587'));
 define('SMTP_USER', env('SMTP_USER') ?? '');
 define('SMTP_PASS', env('SMTP_PASS') ?? '');
 define('SMTP_SECURE', env('SMTP_SECURE') ?? 'tls');
-define('MAIL_FROM', env('MAIL_FROM') ?? '');
+define('MAIL_FROM', env('MAIL_FROM') ?? env('EMAIL_FROM') ?? '');
 define('MAIL_FROM_NAME', env('MAIL_FROM_NAME') ?? 'Florida Sound Quality');
+
+// --- Railway S3-compatible object storage (server-side PDF archive) ----------
+
+define('AWS_ENDPOINT_URL', env('AWS_ENDPOINT_URL') ?? env('AWS_ENDPOINT') ?? '');
+define('AWS_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID') ?? '');
+define('AWS_SECRET_ACCESS_KEY', env('AWS_SECRET_ACCESS_KEY') ?? '');
+define('AWS_S3_BUCKET_NAME', env('AWS_S3_BUCKET_NAME') ?? env('AWS_BUCKET') ?? '');
+define('AWS_DEFAULT_REGION', env('AWS_DEFAULT_REGION') ?? env('AWS_REGION') ?? 'auto');
+define('AWS_S3_URL_STYLE', env('AWS_S3_URL_STYLE') ?? 'virtual-host');
 
 // --- HTTPS detection behind Railway's edge proxy -----------------------------
 

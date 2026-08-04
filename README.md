@@ -73,21 +73,32 @@ The assignment prefers deploy by uploading files with no build/transpile step. T
 
 Railway was chosen for managed MySQL and free HTTPS. The same tree can be uploaded via FTP to any PHP host: point the vhost document root at `public/`, import `schema.sql`, and set env vars or a `.env` file. No application code changes are required to switch hosts.
 
-## Email (SMTP)
+## Email (Resend)
 
-Set on the web service / `.env`:
+Mail uses **Resend** (same config pattern as the Rekkeh/estateGuard apps):
 
 | Variable | Purpose |
 |---|---|
-| `SMTP_HOST` | SMTP server |
-| `SMTP_PORT` | Usually `587` |
-| `SMTP_USER` / `SMTP_PASS` | Auth |
-| `SMTP_SECURE` | `tls`, `ssl`, or empty |
-| `MAIL_FROM` / `MAIL_FROM_NAME` | From address |
+| `RESEND_API_KEY` | Resend API key |
+| `RESEND_API_URL` | Default `https://api.resend.com` |
+| `MAIL_FROM` / `EMAIL_FROM` | Verified sender (e.g. `olawale@mail.rekkeh.com`) |
+| `MAIL_FROM_NAME` | Display name |
 
-On submit: score is saved first, then PDF is generated and emailed. If SMTP fails, the judge still sees success with **“Score saved, email failed.”**
+On submit: score is saved → PDF generated → PDF archived to Railway object storage → Resend sends the PDF as an attachment. If mail fails, the judge still sees success with **“Score saved, email failed.”**
 
-Mailtrap (or similar) works for testing. Resend/API providers can replace PHPMailer later without changing the scoring flow.
+SMTP (`SMTP_*`) remains as an optional fallback.
+
+## Object storage (Railway S3)
+
+Bucket `fsq-scorecards` stores **server-generated** scorecard PDFs only. There is **no client file upload**.
+
+| Variable | Purpose |
+|---|---|
+| `AWS_ENDPOINT_URL` | S3 API endpoint |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | Credentials |
+| `AWS_S3_BUCKET_NAME` | Bucket name |
+| `AWS_DEFAULT_REGION` | Usually `auto` |
+| `AWS_S3_URL_STYLE` | `virtual-host` (Railway default) |
 
 ## Events design
 

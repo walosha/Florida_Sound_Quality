@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../includes/pdf.php';
 require_once __DIR__ . '/../includes/email.php';
+require_once __DIR__ . '/../includes/storage.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -136,10 +137,17 @@ try {
 $scoreId = (int) db()->lastInsertId();
 $emailSent = false;
 $emailWarning = null;
+$pdfStored = false;
 
 try {
     $pdf = generateScorecardPdf($data);
-    $mailResult = sendScorecardEmail($data, $pdf);
+    $store = storeScorecardPdf($scoreId, $pdf, (string) $data['event_name']);
+    $pdfStored = $store['ok'];
+    if (!$pdfStored) {
+        error_log('PDF archive skipped/failed: ' . ($store['error'] ?? 'unknown'));
+    }
+    // Private bucket URLs are not emailable as public links — attachment only.
+    $mailResult = sendScorecardEmail($data, $pdf, null);
     $emailSent = $mailResult['ok'];
     if (!$emailSent) {
         $emailWarning = 'Score saved, email failed.';
@@ -154,6 +162,7 @@ $payload = [
     'success'    => true,
     'scoreId'    => $scoreId,
     'emailSent'  => $emailSent,
+    'pdfStored'  => $pdfStored,
     'grandTotal' => $data['grand_total'],
 ];
 if ($emailWarning !== null) {

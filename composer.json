@@ -4,6 +4,7 @@
     "type": "project",
     "require": {
         "php": ">=8.2",
+        "ext-curl": "*",
         "ext-mbstring": "*",
         "ext-pdo_mysql": "*",
         "phpmailer/phpmailer": "^6.9",
