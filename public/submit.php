@@ -28,6 +28,17 @@ if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
     exit;
 }
 
+$paperUpload = validatePaperSheetUpload(
+    isset($_FILES['paper_sheet']) && is_array($_FILES['paper_sheet'])
+        ? $_FILES['paper_sheet']
+        : null
+);
+if (!$paperUpload['ok']) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'errors' => ['paper_sheet' => $paperUpload['error']]]);
+    exit;
+}
+
 $result = validateScoreSubmission($_POST);
 
 if (!$result['ok']) {
@@ -65,7 +76,7 @@ try {
             listening_position, width, height, depth, ambience, stage_notes,
             imaging_score, imaging_notes,
             noise, listening_pleasure, noise_notes, listening_notes,
-            tonal_total, stage_total, grand_total, placement
+            tonal_total, stage_total, grand_total, placement, paper_sheet_key
         ) VALUES (
             ?, ?, ?, ?,
             ?, ?,
@@ -74,7 +85,7 @@ try {
             ?, ?, ?, ?, ?, ?,
             ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?, ?
+            ?, ?, ?, ?, ?
         )',
         [
             $data['submission_uuid'],
@@ -109,6 +120,7 @@ try {
             $data['stage_total'],
             $data['grand_total'],
             $data['placement'],
+            null,
         ]
     );
 } catch (PDOException $e) {
@@ -138,6 +150,7 @@ $scoreId = (int) db()->lastInsertId();
 $emailSent = false;
 $emailWarning = null;
 $pdfStored = false;
+$paperStored = false;
 
 try {
     $pdf = generateScorecardPdf($data);
@@ -146,6 +159,30 @@ try {
     if (!$pdfStored) {
         error_log('PDF archive skipped/failed: ' . ($store['error'] ?? 'unknown'));
     }
+
+    if (!$paperUpload['skip'] && $paperUpload['binary'] !== null && $paperUpload['mime'] !== null && $paperUpload['ext'] !== null) {
+        $paperStore = storePaperSheetImage(
+            $scoreId,
+            $paperUpload['binary'],
+            $paperUpload['mime'],
+            $paperUpload['ext'],
+            (string) $data['event_name']
+        );
+        $paperStored = $paperStore['ok'];
+        if ($paperStored && $paperStore['key'] !== null) {
+            try {
+                dbQuery(
+                    'UPDATE scores SET paper_sheet_key = ? WHERE id = ?',
+                    [$paperStore['key'], $scoreId]
+                );
+            } catch (Throwable $e) {
+                error_log('paper_sheet_key update failed: ' . $e->getMessage());
+            }
+        } else {
+            error_log('Paper sheet archive skipped/failed: ' . ($paperStore['error'] ?? 'unknown'));
+        }
+    }
+
     // Private bucket URLs are not emailable as public links — attachment only.
     $mailResult = sendScorecardEmail($data, $pdf, null);
     $emailSent = $mailResult['ok'];
@@ -159,11 +196,12 @@ try {
 
 http_response_code(201);
 $payload = [
-    'success'    => true,
-    'scoreId'    => $scoreId,
-    'emailSent'  => $emailSent,
-    'pdfStored'  => $pdfStored,
-    'grandTotal' => $data['grand_total'],
+    'success'     => true,
+    'scoreId'     => $scoreId,
+    'emailSent'   => $emailSent,
+    'pdfStored'   => $pdfStored,
+    'paperStored' => $paperStored,
+    'grandTotal'  => $data['grand_total'],
 ];
 if ($emailWarning !== null) {
     $payload['emailWarning'] = $emailWarning;

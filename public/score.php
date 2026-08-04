@@ -72,7 +72,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
 
         <div id="form-status" class="form-status" role="status" aria-live="polite" hidden></div>
 
-        <form id="score-form" method="post" action="/submit.php" novalidate>
+        <form id="score-form" method="post" action="/submit.php" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="submission_uuid" id="submission_uuid" value="">
 
@@ -135,6 +135,27 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                         <input type="text" id="vehicle_color" name="vehicle_color" maxlength="50">
                         <p class="field-error" hidden></p>
                     </div>
+                </div>
+            </section>
+
+            <section class="score-section" aria-labelledby="sec-paper">
+                <h2 id="sec-paper">Paper sheet <span class="optional-tag">optional</span></h2>
+                <p class="section-hint">Photo or scan of the original paper scoring sheet, kept as a reference image.</p>
+                <div class="field field-upload">
+                    <label for="paper_sheet">Reference image</label>
+                    <input
+                        type="file"
+                        id="paper_sheet"
+                        name="paper_sheet"
+                        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                        capture="environment"
+                    >
+                    <p class="field-hint">JPEG, PNG, WebP, or HEIC · max 12 MB</p>
+                    <div id="paper-sheet-preview" class="upload-preview" hidden>
+                        <img id="paper-sheet-preview-img" alt="Paper sheet preview">
+                        <button type="button" id="paper-sheet-clear" class="btn-text">Remove</button>
+                    </div>
+                    <p class="field-error" hidden></p>
                 </div>
             </section>
 

@@ -1,5 +1,5 @@
 /**
- * Scoring form: UUID idempotency, steppers, live totals, submit.
+ * Scoring form: UUID idempotency, steppers, live totals, optional paper sheet, submit.
  */
 (function () {
   'use strict';
@@ -7,6 +7,14 @@
   const TONAL = ['sub_bass', 'mid_bass', 'midrange', 'high_freq', 'spectral_balance'];
   const STAGE = ['listening_position', 'width', 'height', 'depth', 'ambience'];
   const NOISE = ['noise', 'listening_pleasure'];
+  const PAPER_MAX_BYTES = 12 * 1024 * 1024;
+  const PAPER_OK_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+  ]);
 
   const form = document.getElementById('score-form');
   if (!form) return;
@@ -14,6 +22,11 @@
   const uuidInput = document.getElementById('submission_uuid');
   const submitBtn = document.getElementById('submit-btn');
   const statusEl = document.getElementById('form-status');
+  const paperInput = document.getElementById('paper_sheet');
+  const paperPreview = document.getElementById('paper-sheet-preview');
+  const paperPreviewImg = document.getElementById('paper-sheet-preview-img');
+  const paperClear = document.getElementById('paper-sheet-clear');
+  let paperObjectUrl = null;
 
   function uuidv4() {
     if (crypto.randomUUID) return crypto.randomUUID();
@@ -49,7 +62,7 @@
     const wrap = form.querySelector(`[data-field="${name}"]`) || form.querySelector(`#${CSS.escape(name)}`)?.closest('.field');
     const input = form.elements.namedItem(name);
     const err = wrap?.querySelector('.field-error');
-    if (input) {
+    if (input && input.classList) {
       input.classList.toggle('is-invalid', Boolean(message));
     }
     wrap?.classList.toggle('is-invalid', Boolean(message));
@@ -70,6 +83,58 @@
       el.hidden = true;
       el.textContent = '';
     });
+  }
+
+  function clearPaperPreview() {
+    if (paperObjectUrl) {
+      URL.revokeObjectURL(paperObjectUrl);
+      paperObjectUrl = null;
+    }
+    if (paperPreviewImg) paperPreviewImg.removeAttribute('src');
+    if (paperPreview) paperPreview.hidden = true;
+  }
+
+  function resetPaperSheet() {
+    if (paperInput) paperInput.value = '';
+    clearPaperPreview();
+    setFieldError('paper_sheet', '');
+  }
+
+  function validatePaperSheet() {
+    if (!paperInput || !paperInput.files || paperInput.files.length === 0) {
+      setFieldError('paper_sheet', '');
+      return true;
+    }
+    const file = paperInput.files[0];
+    const typeOk = !file.type || PAPER_OK_TYPES.has(file.type);
+    const name = (file.name || '').toLowerCase();
+    const extOk = /\.(jpe?g|png|webp|heic|heif)$/.test(name);
+    if (!typeOk && !extOk) {
+      setFieldError('paper_sheet', 'Use a JPEG, PNG, WebP, or HEIC photo.');
+      return false;
+    }
+    if (file.size > PAPER_MAX_BYTES) {
+      setFieldError('paper_sheet', 'Image must be under 12 MB.');
+      return false;
+    }
+    setFieldError('paper_sheet', '');
+    return true;
+  }
+
+  function showPaperPreview(file) {
+    clearPaperPreview();
+    if (!file || !paperPreview || !paperPreviewImg) return;
+    // HEIC often cannot preview in-browser; still keep the file selected.
+    if (file.type === 'image/heic' || file.type === 'image/heif' || /\.hei[cf]$/i.test(file.name || '')) {
+      paperPreview.hidden = false;
+      paperPreviewImg.alt = file.name || 'Paper sheet selected';
+      paperPreviewImg.removeAttribute('src');
+      return;
+    }
+    paperObjectUrl = URL.createObjectURL(file);
+    paperPreviewImg.src = paperObjectUrl;
+    paperPreviewImg.alt = 'Paper sheet preview';
+    paperPreview.hidden = false;
   }
 
   function validateField(input) {
@@ -136,6 +201,21 @@
     input.addEventListener('blur', () => validateField(input));
   });
 
+  if (paperInput) {
+    paperInput.addEventListener('change', () => {
+      if (!validatePaperSheet()) {
+        clearPaperPreview();
+        return;
+      }
+      const file = paperInput.files && paperInput.files[0];
+      if (file) showPaperPreview(file);
+      else clearPaperPreview();
+    });
+  }
+  if (paperClear) {
+    paperClear.addEventListener('click', () => resetPaperSheet());
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearErrors();
@@ -152,6 +232,7 @@
         ok = false;
       }
     });
+    if (!validatePaperSheet()) ok = false;
     if (!ok) {
       showStatus('Fix the highlighted fields.', 'error');
       return;
@@ -196,11 +277,14 @@
         } else if (payload.emailSent) {
           msg += ' Email sent.';
         }
+        if (payload.paperStored) {
+          msg += ' Paper sheet archived.';
+        }
         showStatus(msg, payload.emailSent === false && !payload.duplicate ? 'warn' : 'success');
       }
 
       form.reset();
-      // Keep date default tomorrow's event often today
+      resetPaperSheet();
       const dateEl = form.elements.namedItem('event_date');
       if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
       setUuid();

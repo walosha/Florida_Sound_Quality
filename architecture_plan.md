@@ -220,6 +220,8 @@ CREATE TABLE IF NOT EXISTS scores (
     grand_total      SMALLINT UNSIGNED NOT NULL,
     -- placement
     placement        VARCHAR(100),
+    -- optional photo/scan of the original paper scoring sheet (S3 object key)
+    paper_sheet_key  VARCHAR(512)     NULL,
     -- meta
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

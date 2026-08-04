@@ -61,9 +61,12 @@ Set `JUDGE_PASSWORD_HASH` in `.env` (local) or Railway service variables.
 
 ```bash
 railway ssh keys add -k ~/.ssh/id_ed25519.pub   # once
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"   # if needed
 cat schema.sql | railway connect MySQL --ssh
 cat seed.sql   | railway connect MySQL --ssh
 ```
+
+Existing DBs: apply `migrations/2026-08-04_paper_sheet_key.sql` the same way (already applied on Railway production).
 
 6. Generate a public domain on the web service.
 
@@ -84,13 +87,16 @@ Mail uses **Resend** (same config pattern as the Rekkeh/estateGuard apps):
 | `MAIL_FROM` / `EMAIL_FROM` | Verified sender (e.g. `olawale@mail.rekkeh.com`) |
 | `MAIL_FROM_NAME` | Display name |
 
-On submit: score is saved → PDF generated → PDF archived to Railway object storage → Resend sends the PDF as an attachment. If mail fails, the judge still sees success with **“Score saved, email failed.”**
+On submit: score is saved → PDF generated → PDF archived to Railway object storage → optional paper sheet image archived → Resend sends the PDF as an attachment. If mail fails, the judge still sees success with **“Score saved, email failed.”**
 
 SMTP (`SMTP_*`) remains as an optional fallback.
 
 ## Object storage (Railway S3)
 
-Bucket `fsq-scorecards` stores **server-generated** scorecard PDFs only. There is **no client file upload**.
+Bucket `fsq-scorecards` stores:
+
+- **Server-generated** scorecard PDFs (`scorecards/…`)
+- **Optional** judge-uploaded photos/scans of the original paper scoring sheet (`paper-sheets/…`), kept as a private reference image. The scoring form field is optional; submit works without a file.
 
 | Variable | Purpose |
 |---|---|
@@ -99,6 +105,8 @@ Bucket `fsq-scorecards` stores **server-generated** scorecard PDFs only. There i
 | `AWS_S3_BUCKET_NAME` | Bucket name |
 | `AWS_DEFAULT_REGION` | Usually `auto` |
 | `AWS_S3_URL_STYLE` | `virtual-host` (Railway default) |
+
+Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is saved on `scores.paper_sheet_key` when upload succeeds.
 
 ## Events design
 
