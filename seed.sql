@@ -70,4 +70,24 @@ INSERT IGNORE INTO scores (
     40, NULL,
     4, 8, NULL, NULL,
     69, 50, 171, '2nd'
+),
+(
+    '77777777-7777-4777-8777-777777777777', '2026-04-02', 'Orlando Spring Meet', 'Alex Rivera',
+    'Morgan Lee', 'morgan.lee@example.com',
+    2017, 'Mazda', 'MX-5', 'Red',
+    13, 13, 12, 12, 13, NULL,
+    10, 10, 9, 7, 6, NULL,
+    32, NULL,
+    4, 7, NULL, NULL,
+    63, 42, 148, NULL
+),
+(
+    '88888888-8888-4888-8888-888888888888', '2026-04-02', 'Orlando Spring Meet', 'Sam Ortiz',
+    'Avery Kim', 'avery.kim@example.com',
+    2015, 'Honda', 'Accord', 'Silver',
+    11, 12, 11, 10, 11, NULL,
+    9, 8, 8, 5, 5, NULL,
+    28, NULL,
+    3, 6, NULL, NULL,
+    55, 35, 127, NULL
 );

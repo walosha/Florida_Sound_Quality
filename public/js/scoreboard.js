@@ -25,16 +25,14 @@
     rows.forEach((row) => {
       const li = document.createElement('li');
       li.className = 'score-row' + (row.rank <= 3 ? ` rank-${row.rank}` : '');
-      const place = row.placement
-        ? `<span class="placement">${escapeHtml(String(row.placement))}</span>`
-        : '';
+      // placement is judge-entered free text; omit it so it cannot disagree with live rank
       li.innerHTML = `
         <div class="rank">${row.rank}</div>
         <div class="who">
           <div class="name">${escapeHtml(row.competitor_name)}</div>
           <div class="vehicle">${escapeHtml(vehicleLabel(row))}</div>
         </div>
-        <div class="points">${row.total_score}<span class="total-max"> / 230</span>${place}</div>
+        <div class="points">${row.total_score}<span class="total-max"> / 230</span></div>
       `;
       list.appendChild(li);
     });
