@@ -227,9 +227,9 @@ textarea,
 
 input:focus-visible,
 textarea:focus-visible,
+select:focus-visible,
 .stepper-value:focus-visible {
   background: #333028;
-  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 textarea {
@@ -274,9 +274,9 @@ textarea {
 
 .stepper-field.is-invalid .stepper-value,
 .field.is-invalid input,
+.field.is-invalid select,
 input.is-invalid {
   background: #3a2222;
-  box-shadow: inset 0 0 0 2px var(--danger);
 }
 
 .field-error {
@@ -332,7 +332,6 @@ input.is-invalid {
 
 .field.is-invalid input[type="file"] {
   background: #3a2222;
-  box-shadow: inset 0 0 0 2px var(--danger);
 }
 
 .upload-preview {
@@ -468,6 +467,8 @@ button[type="submit"]:disabled {
   color: var(--text);
   background: var(--bg);
   border: 0;
+  border-radius: 0;
+  outline: none;
 }
 
 .score-list {
@@ -532,7 +533,7 @@ button[type="submit"]:disabled {
 .score-row.rank-1 .name { font-size: 1.7rem; }
 
 .score-row.rank-2 {
-  background: #22262a;
+  background: #252522;
 }
 .score-row.rank-2 .rank,
 .score-row.rank-2 .points { color: var(--silver); }
