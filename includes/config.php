@@ -97,9 +97,12 @@ define('DB_USER', $mysqlUser ?? 'root');
 define('DB_PASS', $mysqlPass ?? '');
 define('DB_NAME', $mysqlDb ?? 'florida_sound_quality');
 
-// --- Auth --------------------------------------------------------------------
-// Staff accounts live in the `users` table (seeded admin + judge).
-// JUDGE_PASSWORD_HASH is retired; kept only so old .env files do not break loadEnv.
+// Optional absolute site URL for invite links (e.g. https://example.com).
+// When unset, links are built from the current request host.
+define('APP_BASE_URL', rtrim(env('APP_BASE_URL') ?? '', '/'));
+
+// Invite links expire after this many days (0 = never expire by default age).
+define('INVITE_EXPIRY_DAYS', max(0, (int) (env('INVITE_EXPIRY_DAYS') ?? '30')));
 
 // --- Mail (Resend preferred; SMTP fallback) ---------------------------------
 

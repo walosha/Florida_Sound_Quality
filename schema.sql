@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS competitors (
     created_by_user_id INT UNSIGNED     NULL,
     registered_at      TIMESTAMP        NULL,
     scorecard_sent_at  TIMESTAMP        NULL,
+    expires_at         TIMESTAMP        NULL,
+    revoked_at         TIMESTAMP        NULL,
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     UNIQUE KEY uq_invite_token (invite_token),
@@ -37,12 +39,22 @@ CREATE TABLE IF NOT EXISTS competitors (
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS events (
+    id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL,
+    event_date  DATE         NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_events_date (event_date DESC),
+    UNIQUE KEY uq_events_name_date (name, event_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS scores (
     id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     submission_uuid  CHAR(36)         NOT NULL,
-    -- linked entities (Phase 0+; denormalized competitor fields kept for PDF/scoreboard)
+    -- linked entities; denormalized competitor/event fields kept for PDF snapshots
     competitor_id    INT UNSIGNED     NULL,
     judge_user_id    INT UNSIGNED     NULL,
+    event_id         INT UNSIGNED     NULL,
     -- header
     event_date       DATE             NOT NULL,
     event_name       VARCHAR(255)     NOT NULL,
@@ -93,11 +105,15 @@ CREATE TABLE IF NOT EXISTS scores (
     INDEX idx_event (event_name),
     INDEX idx_total (grand_total DESC),
     INDEX idx_scores_judge (judge_user_id),
+    INDEX idx_scores_event_id (event_id),
     CONSTRAINT fk_scores_competitor
         FOREIGN KEY (competitor_id) REFERENCES competitors(id)
         ON DELETE RESTRICT,
     CONSTRAINT fk_scores_judge
         FOREIGN KEY (judge_user_id) REFERENCES users(id)
+        ON DELETE SET NULL,
+    CONSTRAINT fk_scores_event
+        FOREIGN KEY (event_id) REFERENCES events(id)
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
