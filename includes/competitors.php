@@ -31,7 +31,7 @@ function appBaseUrl(): string
  */
 function competitorInviteUrl(string $token): string
 {
-    return appBaseUrl() . '/competitor/' . rawurlencode($token);
+    return appBaseUrl() . '/competitor.php?token=' . rawurlencode($token);
 }
 
 /**
