@@ -2,6 +2,7 @@
 /**
  * GET /api/scores.php — public live scoreboard JSON.
  * Never returns email, notes, or judge name.
+ * Prefers live competitor profile fields when a score is linked.
  */
 
 declare(strict_types=1);
@@ -39,11 +40,17 @@ if ($event === '') {
 }
 
 $rows = dbFetchAll(
-    'SELECT competitor_name, vehicle_year, vehicle_make, vehicle_model,
-            grand_total, placement
-     FROM scores
-     WHERE event_name = ?
-     ORDER BY grand_total DESC, id ASC',
+    'SELECT
+        COALESCE(c.name, s.competitor_name) AS competitor_name,
+        COALESCE(c.vehicle_year, s.vehicle_year) AS vehicle_year,
+        COALESCE(c.vehicle_make, s.vehicle_make) AS vehicle_make,
+        COALESCE(c.vehicle_model, s.vehicle_model) AS vehicle_model,
+        s.grand_total,
+        s.placement
+     FROM scores s
+     LEFT JOIN competitors c ON c.id = s.competitor_id
+     WHERE s.event_name = ?
+     ORDER BY s.grand_total DESC, s.id ASC',
     [$event]
 );
 

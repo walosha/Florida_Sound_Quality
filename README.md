@@ -1,6 +1,6 @@
 # Florida Sound Quality — Scoring Web App
 
-Mobile-first PHP + MySQL app for judging car-audio competitions. Judges score on a phone; competitors get a PDF scorecard by email; a public scoreboard shows live standings.
+Mobile-first PHP + MySQL app for car-audio competitions. Admins invite competitors; competitors register via unique links (no accounts); judges log in and score registered competitors; admins send PDF scorecards by email when ready. A public scoreboard shows live standings.
 
 No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 
@@ -11,8 +11,8 @@ No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 | Page | URL |
 |------|-----|
 | Staff login | https://web-production-35b3e.up.railway.app/login.php |
-| Scoring form (judge) | https://web-production-35b3e.up.railway.app/score.php |
-| Admin stub | https://web-production-35b3e.up.railway.app/admin/ |
+| Judge competitors / scoring | https://web-production-35b3e.up.railway.app/score.php |
+| Admin panel | https://web-production-35b3e.up.railway.app/admin/ |
 | Public scoreboard | https://web-production-35b3e.up.railway.app/scoreboard.php |
 
 Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outside the web root and inaccessible via HTTP.
@@ -23,8 +23,9 @@ Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outs
 
 Full source on `main`, including:
 
-- `schema.sql` — database schema with `scores` and `rate_limit` tables
-- `seed.sql` — 4+ sample competitors across 2 events
+- `schema.sql` — `users`, `competitors`, `scores`, `sessions`, `rate_limit`
+- `seed.sql` — admin + judge accounts, sample invites/registrations/scores
+- `migrations/` — incremental SQL for existing databases
 - `.env.example` — placeholder config (never commit `.env`)
 - this README — setup steps and design decisions
 
@@ -53,6 +54,8 @@ php -S 127.0.0.1:8000 -t public router.php
 ```
 
 - Staff login: http://127.0.0.1:8000/login.php
+- Admin: http://127.0.0.1:8000/admin/
+- Judge list: http://127.0.0.1:8000/score.php
 - Scoreboard: http://127.0.0.1:8000/scoreboard.php
 
 ### Seed staff accounts
@@ -82,7 +85,7 @@ php -r "echo password_hash('your-password', PASSWORD_BCRYPT), PHP_EOL;"
    - Resend / SMTP and S3 vars below when email/storage are needed
    - Staff logins come from the `users` table (`seed.sql`) — no `JUDGE_PASSWORD_HASH`
 
-4. Procfile / `railway.json` start: `vendor/bin/heroku-php-apache2 public/`
+4. Nixpacks sets `NIXPACKS_PHP_ROOT_DIR=/app/public` (`nixpacks.toml`)
 5. One-time schema + seed (requires Railway CLI + registered SSH key):
 
 ```bash
@@ -97,10 +100,12 @@ Existing DBs: apply migrations in order (once each):
 ```bash
 cat migrations/2026-08-04_paper_sheet_key.sql | railway connect MySQL --ssh
 cat migrations/2026-08-05_users_competitors_auth.sql | railway connect MySQL --ssh
-cat seed.sql | railway connect MySQL --ssh   # seeds admin + judge users
+cat seed.sql | railway connect MySQL --ssh   # seeds admin + judge (+ sample competitors)
+cat migrations/2026-08-05_sync_score_competitor_denorm.sql | railway connect MySQL --ssh
+cat migrations/2026-08-05_phase5_polish.sql | railway connect MySQL --ssh
 ```
 
-6. Generate a public domain on the web service.
+6. Generate a public domain on the web service. Optional: set `APP_BASE_URL` to that public URL for stable invite links.
 
 No frontend build step — only `composer install`.
 
@@ -202,40 +207,63 @@ Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is sa
 - Vanilla HTML/CSS/JS (no frontend frameworks, no build step)
 - All validation server-side
 
-**Not implemented yet (in progress across phases)**
+**Not implemented yet (optional / later)**
 
-- Competitor invite links + registration (Phase 1)
-- Judge competitor list / score-by-selection (Phase 2)
-- Admin panel: invites, scores, manual scorecard email (Phase 3)
-- Event management CRUD — events remain free-text `VARCHAR` on scores for now
-- Offline draft recovery — out of scope for MVP
+- Offline draft does not restore paper-sheet photo uploads (files cannot be stored in `sessionStorage`)
+- Queue PDF/email for slower SMTP
+- Admin UI to edit placement after the fact
+
+**Phase 1 (done):** Admin generates one invite link per competitor; competitors register at `/competitor/{token}` with name, vehicle, and email (no account).
+
+**Phase 2 (done):** Judges see registered competitors, open a prefilled scoring form, save one score per competitor; scorecard email is not sent on submit.
+
+**Phase 3 (done):** Admin panel lists competitors and scores, sends PDF scorecards manually (tracks `scorecard_sent_at`), and creates judge accounts.
+
+**Phase 4 (done):** Cutover — shared password removed, scoreboard prefers `competitors` join, seed covers multi-role demo data, denorm sync migration, docs/smoke checklist.
+
+**Phase 5 (done):** Admin PDF download + resend, invite expiry/revoke, events catalog, offline score-form drafts (`sessionStorage`).
+
 **Optional enhancement (bonus)**
 
 - Judges may upload a photo of the original paper form as a private S3 reference. Optional; does not block submission.
 
 ### Events design detail
 
-Events are a **VARCHAR column** on `scores`, not a separate table. The spec treats event as free text with no admin CRUD or FK needs. A dedicated table would add joins for no current benefit. **One score per competitor** is enforced via `UNIQUE(scores.competitor_id)` once Phase 2 links submissions to registered competitors.
+Events live in an `events` table (admin CRUD). Judges pick an event from the catalog when scoring; `scores` still stores denormalized `event_name` / `event_date` for PDFs and the public scoreboard, plus optional `event_id`. **One score per competitor** via `UNIQUE(scores.competitor_id)`. Scoreboard JSON prefers live `competitors` profile fields via `LEFT JOIN` + `COALESCE`.
+
+## Smoke-test checklist
+
+After deploy / local setup:
+
+1. **Admin login** — `admin@floridasoundquality.local` / `admin123` → `/admin/`
+2. **Generate invite** — copy `/competitor/{token}` link
+3. **Competitor register** — open link (incognito), submit name/vehicle/email → status Registered
+4. **Judge login** — `judge@floridasoundquality.local` / `judge123` → competitor list → Score
+5. **Submit score** — save succeeds; no automatic email; competitor moves to Scored
+6. **Admin Send email** — Resend/SMTP configured → competitor receives PDF; `scorecard_sent_at` set
+7. **Scoreboard** — `/scoreboard.php` shows the event standings (public, no login)
+8. **Auth gates** — judge cannot open `/admin/`; admin cannot open scoring form; logout clears session
 
 ## Project layout
 
 ```
 public/           ← web root
-  login.php, score.php, submit.php, scoreboard.php, logout.php
+  login.php, score.php, submit.php, scoreboard.php, logout.php, competitor.php
   admin/index.php
+  .htaccess        ← /competitor/{token} rewrite
   api/scores.php
   css/style.css
   js/score-form.js, scoreboard.js
 includes/         ← not web-accessible
-  config.php, db.php, auth.php, validation.php, pdf.php, email.php, storage.php
-schema.sql, seed.sql, migrations/, Procfile, railway.json, router.php
+  config.php, db.php, auth.php, competitors.php, admin.php, events.php,
+  validation.php, pdf.php, email.php, storage.php
+schema.sql, seed.sql, migrations/, railway.json, nixpacks.toml, router.php
 ```
 
 ## With more time
 
-- Offline / `sessionStorage` draft recovery for flaky mobile networks
+- Restore paper-sheet photo in offline drafts (needs IndexedDB / opaque file handle)
 - Admin UI to edit placement after the fact
-- Event management CRUD
 - Queue PDF/email for slower SMTP
 
 ## How AI was used (Spec §8)

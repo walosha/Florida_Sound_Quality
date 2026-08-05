@@ -1,6 +1,10 @@
 # Florida Sound Quality — Scoring Web App
 
-Architecture and implementation plan for a **mobile-first PHP + MySQL** web application used at car-audio sound-quality competitions. Judges log in on a phone, enter scores for a competitor, and submit; the server persists the score, generates a PDF scorecard, and emails it to the competitor. A separate **public scoreboard** page shows live standings without login.
+Architecture and implementation plan for the original MVP (shared judge password, auto-email on submit).
+
+**Superseded for product auth/flows:** the app now uses role-based `users` (`admin` / `judge`), competitor invite registration, judge scoring against registered competitors, and **manual** admin scorecard email. Prefer `README.md` + `schema.sql` for current behavior. This document remains useful for scoring field ranges, Railway session notes, and Dompdf/email plumbing history.
+
+---
 
 **Stack:** plain PHP (no framework), MySQL, vanilla HTML/CSS/JS (no React/Vue/build step). Deploy target: **Railway** (Nixpacks + Heroku PHP buildpack) with the MySQL plugin. Composer pulls PHP libraries only (PHPMailer, Dompdf).
 
