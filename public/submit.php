@@ -1,15 +1,17 @@
 <?php
 /**
- * POST /submit.php — validate, insert score (idempotent), return JSON.
+ * POST /submit.php — validate, insert score for a registered competitor (idempotent).
+ * PDF may be archived to S3; email is admin-triggered (Phase 3), not sent here.
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
+require_once __DIR__ . '/../includes/competitors.php';
 require_once __DIR__ . '/../includes/pdf.php';
-require_once __DIR__ . '/../includes/email.php';
 require_once __DIR__ . '/../includes/storage.php';
+require_once __DIR__ . '/../includes/events.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -17,6 +19,11 @@ header('Cache-Control: no-store');
 requireRole('judge');
 
 $judge = currentUser();
+if ($judge === null) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'errors' => ['_form' => 'Not authenticated.']]);
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -28,6 +35,46 @@ if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'errors' => ['_form' => 'Invalid CSRF token.']]);
     exit;
+}
+
+$competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
+if ($competitorId === false || $competitorId <= 0) {
+    http_response_code(422);
+    echo json_encode(['success' => false, 'errors' => ['competitor_id' => 'Select a registered competitor.']]);
+    exit;
+}
+
+$competitor = findCompetitorById($competitorId);
+if ($competitor === null || !competitorIsScoreable($competitor)) {
+    http_response_code(422);
+    echo json_encode([
+        'success' => false,
+        'errors'  => ['_form' => 'This competitor is not available for scoring (missing, or already scored).'],
+    ]);
+    exit;
+}
+
+// Trust DB for competitor identity — ignore client-supplied name/email/vehicle.
+$_POST['competitor_name'] = (string) ($competitor['name'] ?? '');
+$_POST['competitor_email'] = (string) ($competitor['email'] ?? '');
+$_POST['vehicle_year'] = $competitor['vehicle_year'] !== null ? (string) $competitor['vehicle_year'] : '';
+$_POST['vehicle_make'] = (string) ($competitor['vehicle_make'] ?? '');
+$_POST['vehicle_model'] = (string) ($competitor['vehicle_model'] ?? '');
+$_POST['vehicle_color'] = (string) ($competitor['vehicle_color'] ?? '');
+$_POST['judge_name'] = $judge['name'];
+
+$eventId = filter_var($_POST['event_id'] ?? null, FILTER_VALIDATE_INT);
+$resolvedEventId = null;
+if ($eventId !== false && $eventId > 0) {
+    $event = findEventById($eventId);
+    if ($event === null) {
+        http_response_code(422);
+        echo json_encode(['success' => false, 'errors' => ['event_id' => 'Select a valid event.']]);
+        exit;
+    }
+    $_POST['event_name'] = (string) $event['name'];
+    $_POST['event_date'] = (string) $event['event_date'];
+    $resolvedEventId = (int) $event['id'];
 }
 
 $paperUpload = validatePaperSheetUpload(
@@ -50,6 +97,8 @@ if (!$result['ok']) {
 }
 
 $data = $result['data'];
+$data['competitor_id'] = $competitorId;
+$data['event_id'] = $resolvedEventId;
 
 // Idempotency: return existing row for duplicate UUID
 $existing = dbFetchOne(
@@ -59,25 +108,38 @@ $existing = dbFetchOne(
 if ($existing !== null) {
     http_response_code(200);
     echo json_encode([
-        'success'   => true,
-        'scoreId'   => (int) $existing['id'],
-        'duplicate' => true,
-        'emailSent' => false,
-        'grandTotal'=> $data['grand_total'],
+        'success'    => true,
+        'scoreId'    => (int) $existing['id'],
+        'duplicate'  => true,
+        'grandTotal' => $data['grand_total'],
     ]);
     exit;
 }
 
-// Prefer session identity for judge attribution (Phase 0); form name still accepted.
-$judgeUserId = $judge !== null ? $judge['id'] : null;
-$judgeName = $judge !== null && $judge['name'] !== ''
-    ? $judge['name']
-    : (string) $data['judge_name'];
+$pdo = db();
+$scoreId = 0;
 
 try {
+    $pdo->beginTransaction();
+
+    // Re-check inside transaction (one score per competitor)
+    $locked = dbFetchOne(
+        'SELECT id FROM scores WHERE competitor_id = ? FOR UPDATE',
+        [$competitorId]
+    );
+    if ($locked !== null) {
+        $pdo->rollBack();
+        http_response_code(422);
+        echo json_encode([
+            'success' => false,
+            'errors'  => ['_form' => 'This competitor already has a score.'],
+        ]);
+        exit;
+    }
+
     dbQuery(
         'INSERT INTO scores (
-            submission_uuid, competitor_id, judge_user_id,
+            submission_uuid, competitor_id, judge_user_id, event_id,
             event_date, event_name, judge_name,
             competitor_name, competitor_email,
             vehicle_year, vehicle_make, vehicle_model, vehicle_color,
@@ -87,7 +149,7 @@ try {
             noise, listening_pleasure, noise_notes, listening_notes,
             tonal_total, stage_total, grand_total, placement, paper_sheet_key
         ) VALUES (
-            ?, ?, ?,
+            ?, ?, ?, ?,
             ?, ?, ?,
             ?, ?,
             ?, ?, ?, ?,
@@ -99,11 +161,12 @@ try {
         )',
         [
             $data['submission_uuid'],
-            null, // competitor_id wired in Phase 2
-            $judgeUserId,
+            $competitorId,
+            $judge['id'],
+            $data['event_id'],
             $data['event_date'],
             $data['event_name'],
-            $judgeName,
+            $judge['name'],
             $data['competitor_name'],
             $data['competitor_email'],
             $data['vehicle_year'],
@@ -135,20 +198,31 @@ try {
             null,
         ]
     );
+
+    $scoreId = (int) $pdo->lastInsertId();
+
+    dbQuery(
+        'UPDATE competitors SET status = \'scored\' WHERE id = ? AND status = \'registered\'',
+        [$competitorId]
+    );
+
+    $pdo->commit();
 } catch (PDOException $e) {
-    // Race on UNIQUE — treat as duplicate
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    // Race on UNIQUE submission_uuid or competitor_id
     if ((int) $e->getCode() === 23000) {
         $row = dbFetchOne(
-            'SELECT id FROM scores WHERE submission_uuid = ?',
-            [$data['submission_uuid']]
+            'SELECT id FROM scores WHERE submission_uuid = ? OR competitor_id = ?',
+            [$data['submission_uuid'], $competitorId]
         );
         http_response_code(200);
         echo json_encode([
-            'success'   => true,
-            'scoreId'   => $row ? (int) $row['id'] : 0,
-            'duplicate' => true,
-            'emailSent' => false,
-            'grandTotal'=> $data['grand_total'],
+            'success'    => true,
+            'scoreId'    => $row ? (int) $row['id'] : 0,
+            'duplicate'  => true,
+            'grandTotal' => $data['grand_total'],
         ]);
         exit;
     }
@@ -158,9 +232,6 @@ try {
     exit;
 }
 
-$scoreId = (int) db()->lastInsertId();
-$emailSent = false;
-$emailWarning = null;
 $pdfStored = false;
 $paperStored = false;
 
@@ -194,28 +265,16 @@ try {
             error_log('Paper sheet archive skipped/failed: ' . ($paperStore['error'] ?? 'unknown'));
         }
     }
-
-    // Private bucket URLs are not emailable as public links — attachment only.
-    $mailResult = sendScorecardEmail($data, $pdf, null);
-    $emailSent = $mailResult['ok'];
-    if (!$emailSent) {
-        $emailWarning = 'Score saved, email failed.';
-    }
 } catch (Throwable $e) {
-    error_log('PDF/email failed after save: ' . $e->getMessage());
-    $emailWarning = 'Score saved, email failed.';
+    error_log('PDF/storage failed after save: ' . $e->getMessage());
 }
 
 http_response_code(201);
-$payload = [
+echo json_encode([
     'success'     => true,
     'scoreId'     => $scoreId,
-    'emailSent'   => $emailSent,
     'pdfStored'   => $pdfStored,
     'paperStored' => $paperStored,
     'grandTotal'  => $data['grand_total'],
-];
-if ($emailWarning !== null) {
-    $payload['emailWarning'] = $emailWarning;
-}
-echo json_encode($payload);
+    'redirect'    => '/score.php',
+]);

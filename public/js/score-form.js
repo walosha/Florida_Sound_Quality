@@ -26,7 +26,13 @@
   const paperPreview = document.getElementById('paper-sheet-preview');
   const paperPreviewImg = document.getElementById('paper-sheet-preview-img');
   const paperClear = document.getElementById('paper-sheet-clear');
+  const eventSelect = document.getElementById('event_id');
+  const competitorIdEl = form.elements.namedItem('competitor_id');
+  const draftKey = competitorIdEl && competitorIdEl.value
+    ? `fsq-score-draft-v1-${competitorIdEl.value}`
+    : null;
   let paperObjectUrl = null;
+  let draftTimer = null;
 
   function uuidv4() {
     if (crypto.randomUUID) return crypto.randomUUID();
@@ -178,6 +184,83 @@
     statusEl.className = 'form-status' + (kind ? ` is-${kind}` : '');
   }
 
+  function syncEventFromSelect() {
+    if (!eventSelect) return;
+    const opt = eventSelect.options[eventSelect.selectedIndex];
+    const dateEl = form.elements.namedItem('event_date');
+    const nameEl = form.elements.namedItem('event_name');
+    if (dateEl) dateEl.value = opt ? (opt.getAttribute('data-date') || '') : '';
+    if (nameEl) nameEl.value = opt ? (opt.getAttribute('data-name') || '') : '';
+  }
+
+  function collectDraft() {
+    const data = { fields: {}, uuid: uuidInput ? uuidInput.value : '' };
+    Array.from(form.elements).forEach((el) => {
+      if (!el.name || el.name === 'csrf_token' || el.name === 'paper_sheet') return;
+      if (el.type === 'file') return;
+      if (el.type === 'checkbox' || el.type === 'radio') {
+        if (el.checked) data.fields[el.name] = el.value;
+        return;
+      }
+      data.fields[el.name] = el.value;
+    });
+    return data;
+  }
+
+  function saveDraft() {
+    if (!draftKey) return;
+    try {
+      sessionStorage.setItem(draftKey, JSON.stringify(collectDraft()));
+    } catch (e) {
+      // quota / private mode — ignore
+    }
+  }
+
+  function scheduleDraftSave() {
+    if (!draftKey) return;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, 300);
+  }
+
+  function clearDraft() {
+    if (!draftKey) return;
+    try {
+      sessionStorage.removeItem(draftKey);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function loadDraft() {
+    if (!draftKey) return false;
+    let raw;
+    try {
+      raw = sessionStorage.getItem(draftKey);
+    } catch (e) {
+      return false;
+    }
+    if (!raw) return false;
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      return false;
+    }
+    if (!data || !data.fields) return false;
+    Object.keys(data.fields).forEach((name) => {
+      const el = form.elements.namedItem(name);
+      if (!el || el.type === 'file' || name === 'csrf_token') return;
+      el.value = data.fields[name];
+    });
+    if (uuidInput && data.uuid) {
+      uuidInput.value = data.uuid;
+    }
+    syncEventFromSelect();
+    updateTotals();
+    showStatus('Restored unsaved draft from this device.', 'info');
+    return true;
+  }
+
   // Steppers
   form.querySelectorAll('.stepper-field').forEach((wrap) => {
     const input = wrap.querySelector('.stepper-value');
@@ -192,13 +275,34 @@
         input.value = String(n);
         validateField(input);
         updateTotals();
+        scheduleDraftSave();
       });
     });
     input.addEventListener('input', () => {
       validateField(input);
       updateTotals();
+      scheduleDraftSave();
     });
     input.addEventListener('blur', () => validateField(input));
+  });
+
+  if (eventSelect) {
+    eventSelect.addEventListener('change', () => {
+      syncEventFromSelect();
+      setFieldError('event_id', '');
+      scheduleDraftSave();
+    });
+  }
+
+  form.addEventListener('input', (e) => {
+    if (e.target && e.target.name && e.target.name !== 'paper_sheet') {
+      scheduleDraftSave();
+    }
+  });
+  form.addEventListener('change', (e) => {
+    if (e.target && e.target.name && e.target.name !== 'paper_sheet') {
+      scheduleDraftSave();
+    }
   });
 
   if (paperInput) {
@@ -232,6 +336,15 @@
         ok = false;
       }
     });
+    if (eventSelect && !String(eventSelect.value).trim()) {
+      setFieldError('event_id', 'Select an event.');
+      ok = false;
+    }
+    const competitorIdField = form.elements.namedItem('competitor_id');
+    if (!competitorIdField || !String(competitorIdField.value).trim()) {
+      showStatus('Select a competitor from the list first.', 'error');
+      return;
+    }
     if (!validatePaperSheet()) ok = false;
     if (!ok) {
       showStatus('Fix the highlighted fields.', 'error');
@@ -270,38 +383,33 @@
         showStatus(`Already saved (score #${payload.scoreId}).${total}`, 'success');
       } else {
         let msg = `Score #${payload.scoreId} saved.${total}`;
-        if (payload.emailSent === false && payload.emailWarning) {
-          msg += ' ' + payload.emailWarning;
-        } else if (payload.emailSent === false) {
-          msg += ' Email not sent.';
-        } else if (payload.emailSent) {
-          msg += ' Email sent.';
-        }
         if (payload.paperStored) {
           msg += ' Paper sheet archived.';
         }
-        showStatus(msg, payload.emailSent === false && !payload.duplicate ? 'warn' : 'success');
+        msg += ' Scorecard email is sent by an admin when ready.';
+        showStatus(msg, 'success');
       }
 
-      form.reset();
-      resetPaperSheet();
-      const dateEl = form.elements.namedItem('event_date');
-      if (dateEl) dateEl.value = new Date().toISOString().slice(0, 10);
-      setUuid();
-      updateTotals();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const redirectTo = form.dataset.redirectOnSuccess || payload.redirect || '/score.php';
+      clearDraft();
+      setTimeout(() => {
+        window.location.href = redirectTo;
+      }, 900);
     } catch (err) {
       showStatus('Network error. Check connection and try again.', 'error');
-    } finally {
       submitBtn.disabled = false;
     }
   });
 
   // Init
   setUuid();
-  const dateEl = form.elements.namedItem('event_date');
-  if (dateEl && !dateEl.value) {
-    dateEl.value = new Date().toISOString().slice(0, 10);
+  const restored = loadDraft();
+  if (!restored) {
+    const dateEl = form.elements.namedItem('event_date');
+    if (dateEl && dateEl.type === 'date' && !dateEl.value) {
+      dateEl.value = new Date().toISOString().slice(0, 10);
+    }
   }
+  syncEventFromSelect();
   updateTotals();
 })();
