@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin panel — invites, competitors, scores, scorecard email, judge accounts.
+ * Admin panel — sidebar navigation with overview + section pages.
  */
 
 declare(strict_types=1);
@@ -17,103 +17,147 @@ if ($user === null) {
     exit;
 }
 
-$flash = '';
-$flashError = '';
-$createdInviteUrl = null;
+$sections = [
+    'overview'     => 'Overview',
+    'invites'      => 'Invites',
+    'competitors'  => 'Competitors',
+    'scores'       => 'Submitted scores',
+    'events'       => 'Events',
+    'judges'       => 'Judge accounts',
+];
+
+$section = (string) ($_GET['section'] ?? 'overview');
+if (!isset($sections[$section])) {
+    $section = 'overview';
+}
+
 $judgeForm = ['name' => '', 'email' => ''];
 $judgeErrors = [];
 $eventForm = ['name' => '', 'event_date' => ''];
 $eventErrors = [];
+$createdInviteUrl = null;
+
+/**
+ * PRG redirect back into a section with a flash message.
+ */
+function adminRedirect(string $section, string $flash = '', string $flashError = '', ?string $inviteUrl = null): void
+{
+    $_SESSION['admin_flash'] = $flash;
+    $_SESSION['admin_flash_error'] = $flashError;
+    if ($inviteUrl !== null) {
+        $_SESSION['admin_invite_url'] = $inviteUrl;
+    }
+    header('Location: /admin/?section=' . rawurlencode($section));
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
-        $flashError = 'Invalid request. Please try again.';
-    } else {
-        $action = (string) ($_POST['action'] ?? '');
+        adminRedirect($section, '', 'Invalid request. Please try again.');
+    }
 
-        if ($action === 'create_invite') {
-            try {
-                $invite = createCompetitorInvite($user['id']);
-                $createdInviteUrl = competitorInviteUrl((string) $invite['invite_token']);
-                $flash = 'Invite created'
-                    . (!empty($invite['expires_at']) ? ' (expires ' . $invite['expires_at'] . ')' : '')
-                    . '. Copy the link below and send it to the competitor.';
-                unset($_SESSION['csrf_token']);
-            } catch (Throwable $e) {
-                error_log('createCompetitorInvite failed: ' . $e->getMessage());
-                $flashError = 'Could not create invite. Try again.';
-            }
-        } elseif ($action === 'revoke_invite') {
-            $competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
-            if ($competitorId === false || $competitorId <= 0) {
-                $flashError = 'Invalid invite.';
-            } else {
-                $revoked = revokeCompetitorInvite($competitorId);
-                if ($revoked['ok']) {
-                    $flash = 'Invite revoked.';
-                    unset($_SESSION['csrf_token']);
-                } else {
-                    $flashError = $revoked['error'] ?? 'Could not revoke invite.';
-                }
-            }
-        } elseif ($action === 'send_scorecard') {
-            $competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
-            if ($competitorId === false || $competitorId <= 0) {
-                $flashError = 'Invalid competitor.';
-            } else {
-                $result = sendCompetitorScorecard($competitorId);
-                if ($result['ok']) {
-                    $flash = 'Scorecard emailed successfully'
-                        . ($result['provider'] ? ' via ' . $result['provider'] : '')
-                        . '.';
-                    unset($_SESSION['csrf_token']);
-                } else {
-                    $flashError = $result['error'] ?? 'Could not send scorecard.';
-                }
-            }
-        } elseif ($action === 'create_event') {
-            $eventForm['name'] = trim((string) ($_POST['name'] ?? ''));
-            $eventForm['event_date'] = trim((string) ($_POST['event_date'] ?? ''));
-            $created = createEvent($eventForm['name'], $eventForm['event_date']);
-            if ($created['ok']) {
-                $flash = 'Event created: ' . ($created['event']['name'] ?? $eventForm['name']);
-                $eventForm = ['name' => '', 'event_date' => ''];
-                unset($_SESSION['csrf_token']);
-            } else {
-                $eventErrors = $created['errors'];
-                $flashError = 'Fix the event form and try again.';
-            }
-        } elseif ($action === 'delete_event') {
-            $eventId = filter_var($_POST['event_id'] ?? null, FILTER_VALIDATE_INT);
-            if ($eventId === false || $eventId <= 0) {
-                $flashError = 'Invalid event.';
-            } else {
-                $deleted = deleteEvent($eventId);
-                if ($deleted['ok']) {
-                    $flash = 'Event deleted.';
-                    unset($_SESSION['csrf_token']);
-                } else {
-                    $flashError = $deleted['error'] ?? 'Could not delete event.';
-                }
-            }
-        } elseif ($action === 'create_judge') {
-            $judgeForm['name'] = trim((string) ($_POST['name'] ?? ''));
-            $judgeForm['email'] = trim((string) ($_POST['email'] ?? ''));
-            $password = (string) ($_POST['password'] ?? '');
-            $created = createJudgeAccount($judgeForm['email'], $judgeForm['name'], $password);
-            if ($created['ok']) {
-                $flash = 'Judge account created for ' . ($created['user']['email'] ?? $judgeForm['email']) . '.';
-                $judgeForm = ['name' => '', 'email' => ''];
-                unset($_SESSION['csrf_token']);
-            } else {
-                $judgeErrors = $created['errors'];
-                $flashError = $judgeErrors['_form'] ?? 'Fix the judge form and try again.';
-            }
-        } else {
-            $flashError = 'Unknown action.';
+    $action = (string) ($_POST['action'] ?? '');
+    $postSection = (string) ($_POST['section'] ?? $section);
+    if (!isset($sections[$postSection])) {
+        $postSection = 'overview';
+    }
+
+    if ($action === 'create_invite') {
+        try {
+            $invite = createCompetitorInvite($user['id']);
+            $url = competitorInviteUrl((string) $invite['invite_token']);
+            $msg = 'Invite created'
+                . (!empty($invite['expires_at']) ? ' (expires ' . $invite['expires_at'] . ')' : '')
+                . '. Copy the link below.';
+            unset($_SESSION['csrf_token']);
+            adminRedirect('invites', $msg, '', $url);
+        } catch (Throwable $e) {
+            error_log('createCompetitorInvite failed: ' . $e->getMessage());
+            adminRedirect('invites', '', 'Could not create invite. Try again.');
         }
     }
+
+    if ($action === 'revoke_invite') {
+        $competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
+        if ($competitorId === false || $competitorId <= 0) {
+            adminRedirect('competitors', '', 'Invalid invite.');
+        }
+        $revoked = revokeCompetitorInvite($competitorId);
+        unset($_SESSION['csrf_token']);
+        if ($revoked['ok']) {
+            adminRedirect('competitors', 'Invite revoked.');
+        }
+        adminRedirect('competitors', '', $revoked['error'] ?? 'Could not revoke invite.');
+    }
+
+    if ($action === 'send_scorecard') {
+        $competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
+        $back = in_array($postSection, ['competitors', 'scores'], true) ? $postSection : 'scores';
+        if ($competitorId === false || $competitorId <= 0) {
+            adminRedirect($back, '', 'Invalid competitor.');
+        }
+        $result = sendCompetitorScorecard($competitorId);
+        unset($_SESSION['csrf_token']);
+        if ($result['ok']) {
+            $msg = 'Scorecard emailed successfully'
+                . ($result['provider'] ? ' via ' . $result['provider'] : '')
+                . '.';
+            adminRedirect($back, $msg);
+        }
+        adminRedirect($back, '', $result['error'] ?? 'Could not send scorecard.');
+    }
+
+    if ($action === 'create_event') {
+        $eventForm['name'] = trim((string) ($_POST['name'] ?? ''));
+        $eventForm['event_date'] = trim((string) ($_POST['event_date'] ?? ''));
+        $created = createEvent($eventForm['name'], $eventForm['event_date']);
+        if ($created['ok']) {
+            unset($_SESSION['csrf_token']);
+            adminRedirect(
+                'events',
+                'Event created: ' . ($created['event']['name'] ?? $eventForm['name'])
+            );
+        }
+        $eventErrors = $created['errors'];
+        $section = 'events';
+        $_SESSION['admin_flash_error'] = 'Fix the event form and try again.';
+    } elseif ($action === 'delete_event') {
+        $eventId = filter_var($_POST['event_id'] ?? null, FILTER_VALIDATE_INT);
+        if ($eventId === false || $eventId <= 0) {
+            adminRedirect('events', '', 'Invalid event.');
+        }
+        $deleted = deleteEvent($eventId);
+        unset($_SESSION['csrf_token']);
+        if ($deleted['ok']) {
+            adminRedirect('events', 'Event deleted.');
+        }
+        adminRedirect('events', '', $deleted['error'] ?? 'Could not delete event.');
+    } elseif ($action === 'create_judge') {
+        $judgeForm['name'] = trim((string) ($_POST['name'] ?? ''));
+        $judgeForm['email'] = trim((string) ($_POST['email'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+        $created = createJudgeAccount($judgeForm['email'], $judgeForm['name'], $password);
+        if ($created['ok']) {
+            unset($_SESSION['csrf_token']);
+            adminRedirect(
+                'judges',
+                'Judge account created for ' . ($created['user']['email'] ?? $judgeForm['email']) . '.'
+            );
+        }
+        $judgeErrors = $created['errors'];
+        $section = 'judges';
+        $_SESSION['admin_flash_error'] = $judgeErrors['_form'] ?? 'Fix the judge form and try again.';
+    } elseif (!in_array($action, ['create_event', 'create_judge'], true)) {
+        adminRedirect($postSection, '', 'Unknown action.');
+    }
 }
+
+$flash = (string) ($_SESSION['admin_flash'] ?? '');
+$flashError = (string) ($_SESSION['admin_flash_error'] ?? '');
+$createdInviteUrl = isset($_SESSION['admin_invite_url'])
+    ? (string) $_SESSION['admin_invite_url']
+    : null;
+unset($_SESSION['admin_flash'], $_SESSION['admin_flash_error'], $_SESSION['admin_invite_url']);
 
 $token = csrfToken();
 $competitors = listAdminCompetitors();
@@ -123,7 +167,15 @@ $events = listEvents();
 
 $scoredCount = 0;
 $sentCount = 0;
+$invitedCount = 0;
+$registeredCount = 0;
 foreach ($competitors as $row) {
+    $eff = competitorEffectiveStatus($row);
+    if ($eff === 'invited') {
+        $invitedCount++;
+    } elseif ($eff === 'registered') {
+        $registeredCount++;
+    }
     if (!empty($row['score_id'])) {
         $scoredCount++;
     }
@@ -131,435 +183,552 @@ foreach ($competitors as $row) {
         $sentCount++;
     }
 }
+
+$pendingScorecards = $scoredCount - $sentCount;
+if ($pendingScorecards < 0) {
+    $pendingScorecards = 0;
+}
+
+$pageTitle = $sections[$section] . ' — Admin';
+$recentScores = array_slice($scores, 0, 5);
+$recentCompetitors = array_slice($competitors, 0, 5);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin — Florida Sound Quality</title>
+    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?> — Florida Sound Quality</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body class="page-admin">
-    <header class="admin-top">
-        <div class="admin-top-inner">
-            <div>
+    <div class="admin-shell">
+        <aside class="admin-sidebar" id="admin-sidebar">
+            <div class="admin-sidebar-brand">
                 <p class="eyebrow">Florida Sound Quality</p>
-                <h1 class="page-title">Admin</h1>
-                <p class="page-lead">
+                <strong>Admin</strong>
+            </div>
+            <nav class="admin-nav" aria-label="Admin">
+                <?php foreach ($sections as $key => $label): ?>
+                    <a
+                        class="admin-nav-link<?= $section === $key ? ' is-active' : '' ?>"
+                        href="/admin/?section=<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>"
+                        <?= $section === $key ? 'aria-current="page"' : '' ?>
+                    >
+                        <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>
+                        <?php if ($key === 'scores' && $pendingScorecards > 0): ?>
+                            <span class="admin-nav-badge"><?= $pendingScorecards ?></span>
+                        <?php elseif ($key === 'competitors' && $registeredCount > 0): ?>
+                            <span class="admin-nav-badge"><?= $registeredCount ?></span>
+                        <?php endif; ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
+            <div class="admin-sidebar-foot">
+                <p class="admin-sidebar-user">
                     <?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?>
-                    · <?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?>
+                    <span><?= htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8') ?></span>
                 </p>
+                <a class="admin-logout" href="/logout.php">Log out</a>
             </div>
-            <a class="admin-logout" href="/logout.php">Log out</a>
-        </div>
-    </header>
+        </aside>
 
-    <main class="admin-main">
-        <?php if ($flash !== ''): ?>
-            <p class="flash flash-ok" role="status"><?= htmlspecialchars($flash, ENT_QUOTES, 'UTF-8') ?></p>
-        <?php endif; ?>
-        <?php if ($flashError !== ''): ?>
-            <p class="flash flash-error" role="alert"><?= htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8') ?></p>
-        <?php endif; ?>
+        <div class="admin-content">
+            <header class="admin-content-top">
+                <button type="button" class="admin-menu-btn" id="admin-menu-btn" aria-controls="admin-sidebar" aria-expanded="false">
+                    Menu
+                </button>
+                <div>
+                    <p class="eyebrow">Admin</p>
+                    <h1 class="page-title"><?= htmlspecialchars($sections[$section], ENT_QUOTES, 'UTF-8') ?></h1>
+                </div>
+            </header>
 
-        <section class="admin-stats" aria-label="Summary">
-            <div class="admin-stat">
-                <strong><?= count($competitors) ?></strong>
-                <span>Competitors</span>
-            </div>
-            <div class="admin-stat">
-                <strong><?= $scoredCount ?></strong>
-                <span>Scored</span>
-            </div>
-            <div class="admin-stat">
-                <strong><?= $sentCount ?></strong>
-                <span>Scorecards sent</span>
-            </div>
-            <div class="admin-stat">
-                <strong><?= count($staff) ?></strong>
-                <span>Staff accounts</span>
-            </div>
-        </section>
-
-        <section class="admin-section" aria-labelledby="invite-heading">
-            <h2 id="invite-heading">Competitor invites</h2>
-            <p class="page-lead">
-                Generate one unique link per competitor.
-                <?php if (INVITE_EXPIRY_DAYS > 0): ?>
-                    Links expire after <?= (int) INVITE_EXPIRY_DAYS ?> days unless revoked earlier.
-                <?php else: ?>
-                    Links do not auto-expire (you can still revoke unused ones).
+            <main class="admin-main">
+                <?php if ($flash !== ''): ?>
+                    <p class="flash flash-ok" role="status"><?= htmlspecialchars($flash, ENT_QUOTES, 'UTF-8') ?></p>
                 <?php endif; ?>
-            </p>
+                <?php if ($flashError !== ''): ?>
+                    <p class="flash flash-error" role="alert"><?= htmlspecialchars($flashError, ENT_QUOTES, 'UTF-8') ?></p>
+                <?php endif; ?>
 
-            <form method="post" action="/admin/" class="invite-form">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="action" value="create_invite">
-                <button type="submit" class="btn-primary">Generate invite link</button>
-            </form>
+                <?php if ($section === 'overview'): ?>
+                    <section class="admin-stats" aria-label="Summary">
+                        <a class="admin-stat" href="/admin/?section=competitors">
+                            <strong><?= count($competitors) ?></strong>
+                            <span>Competitors</span>
+                        </a>
+                        <a class="admin-stat" href="/admin/?section=competitors">
+                            <strong><?= $registeredCount ?></strong>
+                            <span>Awaiting score</span>
+                        </a>
+                        <a class="admin-stat" href="/admin/?section=scores">
+                            <strong><?= $scoredCount ?></strong>
+                            <span>Scored</span>
+                        </a>
+                        <a class="admin-stat" href="/admin/?section=scores">
+                            <strong><?= $pendingScorecards ?></strong>
+                            <span>Unsent scorecards</span>
+                        </a>
+                        <a class="admin-stat" href="/admin/?section=events">
+                            <strong><?= count($events) ?></strong>
+                            <span>Events</span>
+                        </a>
+                        <a class="admin-stat" href="/admin/?section=judges">
+                            <strong><?= count($staff) ?></strong>
+                            <span>Staff accounts</span>
+                        </a>
+                    </section>
 
-            <?php if ($createdInviteUrl !== null): ?>
-                <div class="invite-result">
-                    <label for="new-invite-url">New invite link</label>
-                    <div class="invite-copy-row">
-                        <input
-                            type="text"
-                            id="new-invite-url"
-                            class="invite-url"
-                            readonly
-                            value="<?= htmlspecialchars($createdInviteUrl, ENT_QUOTES, 'UTF-8') ?>"
-                        >
-                        <button type="button" class="btn-secondary" data-copy-target="new-invite-url">Copy</button>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </section>
+                    <section class="admin-section">
+                        <h2>Quick actions</h2>
+                        <div class="admin-quick-actions">
+                            <a class="btn-secondary" href="/admin/?section=invites">Generate invite</a>
+                            <a class="btn-secondary" href="/admin/?section=events">Manage events</a>
+                            <a class="btn-secondary" href="/admin/?section=scores">Send scorecards</a>
+                            <a class="btn-secondary" href="/admin/?section=judges">Add judge</a>
+                            <a class="btn-secondary" href="/scoreboard.php" target="_blank" rel="noopener">Open scoreboard</a>
+                        </div>
+                    </section>
 
-        <section class="admin-section" aria-labelledby="events-heading">
-            <h2 id="events-heading">Events</h2>
-            <p class="page-lead">Reusable event catalog for judges. Scores still store event name/date for PDFs and the public scoreboard.</p>
-
-            <form method="post" action="/admin/" class="judge-form">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="action" value="create_event">
-                <div class="field-grid">
-                    <div class="field<?= isset($eventErrors['name']) ? ' is-invalid' : '' ?>">
-                        <label for="event_name_new">Event name</label>
-                        <input type="text" id="event_name_new" name="name" maxlength="255" required
-                               value="<?= htmlspecialchars($eventForm['name'], ENT_QUOTES, 'UTF-8') ?>">
-                        <?php if (isset($eventErrors['name'])): ?>
-                            <p class="field-error"><?= htmlspecialchars($eventErrors['name'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php endif; ?>
-                    </div>
-                    <div class="field<?= isset($eventErrors['event_date']) ? ' is-invalid' : '' ?>">
-                        <label for="event_date_new">Event date</label>
-                        <input type="date" id="event_date_new" name="event_date" required
-                               value="<?= htmlspecialchars($eventForm['event_date'], ENT_QUOTES, 'UTF-8') ?>">
-                        <?php if (isset($eventErrors['event_date'])): ?>
-                            <p class="field-error"><?= htmlspecialchars($eventErrors['event_date'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-                <button type="submit" class="btn-primary judge-submit">Add event</button>
-            </form>
-
-            <?php if ($events === []): ?>
-                <p class="empty-note">No events yet. Judges can still type event details until you add some.</p>
-            <?php else: ?>
-                <div class="table-wrap" style="margin-top: 1.25rem;">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Name</th>
-                                <th scope="col">Date</th>
-                                <th scope="col">Created</th>
-                                <th scope="col"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($events as $ev): ?>
-                                <tr>
-                                    <td><strong><?= htmlspecialchars((string) $ev['name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
-                                    <td><?= htmlspecialchars((string) $ev['event_date'], ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td class="cell-muted"><?= htmlspecialchars((string) ($ev['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td>
-                                        <form method="post" action="/admin/" class="inline-form" onsubmit="return confirm('Delete this event?');">
-                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                                            <input type="hidden" name="action" value="delete_event">
-                                            <input type="hidden" name="event_id" value="<?= (int) $ev['id'] ?>">
-                                            <button type="submit" class="btn-secondary">Delete</button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </section>
-
-        <section class="admin-section" aria-labelledby="list-heading">
-            <h2 id="list-heading">Competitors</h2>
-            <p class="page-lead">Name, vehicle, status. Download or email a PDF scorecard when a score is ready.</p>
-            <?php if ($competitors === []): ?>
-                <p class="empty-note">No invites yet. Generate a link above.</p>
-            <?php else: ?>
-                <div class="table-wrap">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Status</th>
-                                <th scope="col">Name / vehicle</th>
-                                <th scope="col">Email</th>
-                                <th scope="col">Score</th>
-                                <th scope="col">Scorecard</th>
-                                <th scope="col">Invite</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($competitors as $row): ?>
-                                <?php
-                                $status = competitorEffectiveStatus($row);
-                                $inviteUrl = competitorInviteUrl((string) $row['invite_token']);
-                                $inputId = 'invite-' . (int) $row['id'];
-                                $vehicle = competitorVehicleLabel($row);
-                                $name = trim((string) ($row['name'] ?? ''));
-                                $email = trim((string) ($row['email'] ?? ''));
-                                $hasScore = !empty($row['score_id']);
-                                $sentAt = $row['scorecard_sent_at'] ?? null;
-                                $inviteOpen = competitorInviteIsOpen($row);
-                                ?>
-                                <tr>
-                                    <td>
-                                        <span class="status-pill status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
-                                            <?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?>
-                                        </span>
-                                        <?php if ($status === 'invited' && !empty($row['expires_at'])): ?>
-                                            <div class="cell-sub">Expires <?= htmlspecialchars((string) $row['expires_at'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <strong><?= htmlspecialchars($name !== '' ? $name : 'Pending registration', ENT_QUOTES, 'UTF-8') ?></strong>
-                                        <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
-                                    </td>
-                                    <td><?= htmlspecialchars($email !== '' ? $email : '—', ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td>
-                                        <?php if ($hasScore): ?>
-                                            <strong><?= (int) $row['grand_total'] ?></strong><span class="total-max"> / 230</span>
-                                            <div class="cell-sub">
-                                                <?= htmlspecialchars((string) ($row['score_event_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
+                    <div class="admin-overview-grid">
+                        <section class="admin-section">
+                            <div class="admin-section-head">
+                                <h2>Recent competitors</h2>
+                                <a href="/admin/?section=competitors">View all</a>
+                            </div>
+                            <?php if ($recentCompetitors === []): ?>
+                                <p class="empty-note">No competitors yet. <a href="/admin/?section=invites">Create an invite</a>.</p>
+                            <?php else: ?>
+                                <ul class="admin-mini-list">
+                                    <?php foreach ($recentCompetitors as $row): ?>
+                                        <?php $eff = competitorEffectiveStatus($row); ?>
+                                        <li>
+                                            <div>
+                                                <strong><?= htmlspecialchars(trim((string) ($row['name'] ?? '')) !== '' ? (string) $row['name'] : 'Pending registration', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <div class="cell-sub"><?= htmlspecialchars(competitorVehicleLabel($row), ENT_QUOTES, 'UTF-8') ?></div>
                                             </div>
-                                        <?php else: ?>
-                                            <span class="cell-muted">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($hasScore): ?>
-                                            <div class="admin-actions">
-                                                <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= (int) $row['id'] ?>">Download PDF</a>
-                                                <form method="post" action="/admin/" class="inline-form">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                                                    <input type="hidden" name="action" value="send_scorecard">
-                                                    <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
-                                                    <button type="submit" class="btn-secondary">
-                                                        <?= $sentAt ? 'Resend email' : 'Send email' ?>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                            <?php if ($sentAt): ?>
-                                                <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
-                                            <?php else: ?>
-                                                <div class="cell-sub cell-warn">Not sent</div>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <span class="cell-muted">No score yet</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <?php if ($inviteOpen): ?>
-                                            <div class="invite-copy-row invite-copy-row--compact">
-                                                <input
-                                                    type="text"
-                                                    id="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>"
-                                                    class="invite-url"
-                                                    readonly
-                                                    value="<?= htmlspecialchars($inviteUrl, ENT_QUOTES, 'UTF-8') ?>"
-                                                >
-                                                <button type="button" class="btn-secondary" data-copy-target="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>">Copy</button>
-                                            </div>
-                                            <form method="post" action="/admin/" class="inline-form" style="margin-top:0.4rem;" onsubmit="return confirm('Revoke this invite link?');">
-                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                                                <input type="hidden" name="action" value="revoke_invite">
-                                                <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
-                                                <button type="submit" class="btn-secondary">Revoke</button>
-                                            </form>
-                                        <?php elseif ($status === 'revoked' || $status === 'expired'): ?>
-                                            <span class="cell-muted"><?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?></span>
-                                        <?php else: ?>
-                                            <span class="cell-muted">Used</span>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </section>
+                                            <span class="status-pill status-<?= htmlspecialchars($eff, ENT_QUOTES, 'UTF-8') ?>">
+                                                <?= htmlspecialchars(competitorStatusLabel($eff), ENT_QUOTES, 'UTF-8') ?>
+                                            </span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </section>
 
-        <section class="admin-section" aria-labelledby="scores-heading">
-            <h2 id="scores-heading">Submitted scores</h2>
-            <p class="page-lead">Scores grouped by competitor (one score each).</p>
-            <?php if ($scores === []): ?>
-                <p class="empty-note">No scores submitted yet.</p>
-            <?php else: ?>
-                <div class="table-wrap">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Competitor</th>
-                                <th scope="col">Event</th>
-                                <th scope="col">Judge</th>
-                                <th scope="col">Total</th>
-                                <th scope="col">Email status</th>
-                                <th scope="col">Scored at</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($scores as $score): ?>
-                                <?php
-                                $vehicle = competitorVehicleLabel($score);
-                                $sentAt = $score['scorecard_sent_at'] ?? null;
-                                $cid = $score['competitor_id'] !== null ? (int) $score['competitor_id'] : 0;
-                                ?>
-                                <tr>
-                                    <td>
-                                        <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                                        <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
-                                        <div class="cell-sub"><?= htmlspecialchars((string) $score['competitor_email'], ENT_QUOTES, 'UTF-8') ?></div>
-                                    </td>
-                                    <td>
-                                        <?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?>
-                                        <div class="cell-sub"><?= htmlspecialchars((string) $score['event_date'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <?php if (!empty($score['placement'])): ?>
-                                            <div class="cell-sub">Placement: <?= htmlspecialchars((string) $score['placement'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= htmlspecialchars((string) $score['judge_name'], ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td>
-                                        <strong><?= (int) $score['grand_total'] ?></strong><span class="total-max"> / 230</span>
-                                        <div class="cell-sub">
-                                            Tonal <?= (int) $score['tonal_total'] ?>
-                                            · Stage <?= (int) $score['stage_total'] ?>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <?php if ($cid > 0): ?>
-                                            <div class="admin-actions">
-                                                <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= $cid ?>">Download PDF</a>
-                                                <form method="post" action="/admin/" class="inline-form">
-                                                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                                                    <input type="hidden" name="action" value="send_scorecard">
-                                                    <input type="hidden" name="competitor_id" value="<?= $cid ?>">
-                                                    <button type="submit" class="btn-secondary">
-                                                        <?= $sentAt ? 'Resend email' : 'Send email' ?>
-                                                    </button>
-                                                </form>
+                        <section class="admin-section">
+                            <div class="admin-section-head">
+                                <h2>Recent scores</h2>
+                                <a href="/admin/?section=scores">View all</a>
+                            </div>
+                            <?php if ($recentScores === []): ?>
+                                <p class="empty-note">No scores submitted yet.</p>
+                            <?php else: ?>
+                                <ul class="admin-mini-list">
+                                    <?php foreach ($recentScores as $score): ?>
+                                        <li>
+                                            <div>
+                                                <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <div class="cell-sub"><?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?></div>
                                             </div>
-                                            <?php if ($sentAt): ?>
-                                                <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
-                                            <?php else: ?>
-                                                <div class="cell-sub cell-warn">Not sent</div>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <span class="cell-muted">Legacy score (no competitor link)</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="cell-muted"><?= htmlspecialchars((string) ($score['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </section>
-
-        <section class="admin-section" aria-labelledby="judges-heading">
-            <h2 id="judges-heading">Judge accounts</h2>
-            <p class="page-lead">Create judge logins (email + password). Admins are seeded separately.</p>
-
-            <form method="post" action="/admin/" class="judge-form">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="action" value="create_judge">
-                <div class="field-grid">
-                    <div class="field<?= isset($judgeErrors['name']) ? ' is-invalid' : '' ?>">
-                        <label for="judge_name">Name</label>
-                        <input type="text" id="judge_name" name="name" maxlength="255" required
-                               value="<?= htmlspecialchars($judgeForm['name'], ENT_QUOTES, 'UTF-8') ?>">
-                        <?php if (isset($judgeErrors['name'])): ?>
-                            <p class="field-error"><?= htmlspecialchars($judgeErrors['name'], ENT_QUOTES, 'UTF-8') ?></p>
-                        <?php endif; ?>
+                                            <strong class="admin-mini-total"><?= (int) $score['grand_total'] ?></strong>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php endif; ?>
+                        </section>
                     </div>
-                    <div class="field<?= isset($judgeErrors['email']) ? ' is-invalid' : '' ?>">
-                        <label for="judge_email">Email</label>
-                        <input type="email" id="judge_email" name="email" maxlength="255" required
-                               value="<?= htmlspecialchars($judgeForm['email'], ENT_QUOTES, 'UTF-8') ?>"
-                               autocomplete="off">
-                        <?php if (isset($judgeErrors['email'])): ?>
-                            <p class="field-error"><?= htmlspecialchars($judgeErrors['email'], ENT_QUOTES, 'UTF-8') ?></p>
+
+                <?php elseif ($section === 'invites'): ?>
+                    <section class="admin-section">
+                        <p class="page-lead">
+                            Generate one unique link per competitor.
+                            <?php if (INVITE_EXPIRY_DAYS > 0): ?>
+                                Links expire after <?= (int) INVITE_EXPIRY_DAYS ?> days unless revoked earlier.
+                            <?php else: ?>
+                                Links do not auto-expire (you can still revoke unused ones).
+                            <?php endif; ?>
+                        </p>
+                        <form method="post" action="/admin/?section=invites" class="invite-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="section" value="invites">
+                            <input type="hidden" name="action" value="create_invite">
+                            <button type="submit" class="btn-primary">Generate invite link</button>
+                        </form>
+                        <?php if ($createdInviteUrl !== null): ?>
+                            <div class="invite-result">
+                                <label for="new-invite-url">New invite link</label>
+                                <div class="invite-copy-row">
+                                    <input type="text" id="new-invite-url" class="invite-url" readonly
+                                           value="<?= htmlspecialchars($createdInviteUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                    <button type="button" class="btn-secondary" data-copy-target="new-invite-url">Copy</button>
+                                </div>
+                            </div>
                         <?php endif; ?>
-                    </div>
-                    <div class="field<?= isset($judgeErrors['password']) ? ' is-invalid' : '' ?>">
-                        <label for="judge_password">Temporary password</label>
-                        <input type="text" id="judge_password" name="password" minlength="8" maxlength="72" required
-                               autocomplete="new-password">
-                        <?php if (isset($judgeErrors['password'])): ?>
-                            <p class="field-error"><?= htmlspecialchars($judgeErrors['password'], ENT_QUOTES, 'UTF-8') ?></p>
+                        <p class="empty-note" style="margin-top:1.25rem;">
+                            Open invites also appear under <a href="/admin/?section=competitors">Competitors</a>
+                            (<?= $invitedCount ?> open).
+                        </p>
+                    </section>
+
+                <?php elseif ($section === 'competitors'): ?>
+                    <section class="admin-section">
+                        <p class="page-lead">Name, vehicle, status. Download or email a PDF scorecard when a score is ready.</p>
+                        <?php if ($competitors === []): ?>
+                            <p class="empty-note">No invites yet. <a href="/admin/?section=invites">Generate a link</a>.</p>
                         <?php else: ?>
-                            <p class="field-hint">At least 8 characters. Share with the judge securely.</p>
+                            <div class="table-wrap">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Name / vehicle</th>
+                                            <th scope="col">Email</th>
+                                            <th scope="col">Score</th>
+                                            <th scope="col">Scorecard</th>
+                                            <th scope="col">Invite</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($competitors as $row): ?>
+                                            <?php
+                                            $status = competitorEffectiveStatus($row);
+                                            $inviteUrl = competitorInviteUrl((string) $row['invite_token']);
+                                            $inputId = 'invite-' . (int) $row['id'];
+                                            $vehicle = competitorVehicleLabel($row);
+                                            $name = trim((string) ($row['name'] ?? ''));
+                                            $email = trim((string) ($row['email'] ?? ''));
+                                            $hasScore = !empty($row['score_id']);
+                                            $sentAt = $row['scorecard_sent_at'] ?? null;
+                                            $inviteOpen = competitorInviteIsOpen($row);
+                                            ?>
+                                            <tr>
+                                                <td>
+                                                    <span class="status-pill status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
+                                                        <?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?>
+                                                    </span>
+                                                    <?php if ($status === 'invited' && !empty($row['expires_at'])): ?>
+                                                        <div class="cell-sub">Expires <?= htmlspecialchars((string) $row['expires_at'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <strong><?= htmlspecialchars($name !== '' ? $name : 'Pending registration', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
+                                                </td>
+                                                <td><?= htmlspecialchars($email !== '' ? $email : '—', ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td>
+                                                    <?php if ($hasScore): ?>
+                                                        <strong><?= (int) $row['grand_total'] ?></strong><span class="total-max"> / 230</span>
+                                                        <div class="cell-sub"><?= htmlspecialchars((string) ($row['score_event_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <?php else: ?>
+                                                        <span class="cell-muted">—</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if ($hasScore): ?>
+                                                        <div class="admin-actions">
+                                                            <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= (int) $row['id'] ?>">Download PDF</a>
+                                                            <form method="post" action="/admin/?section=competitors" class="inline-form">
+                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                                                                <input type="hidden" name="section" value="competitors">
+                                                                <input type="hidden" name="action" value="send_scorecard">
+                                                                <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
+                                                                <button type="submit" class="btn-secondary"><?= $sentAt ? 'Resend email' : 'Send email' ?></button>
+                                                            </form>
+                                                        </div>
+                                                        <?php if ($sentAt): ?>
+                                                            <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
+                                                        <?php else: ?>
+                                                            <div class="cell-sub cell-warn">Not sent</div>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
+                                                        <span class="cell-muted">No score yet</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td>
+                                                    <?php if ($inviteOpen): ?>
+                                                        <div class="invite-copy-row invite-copy-row--compact">
+                                                            <input type="text" id="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>" class="invite-url" readonly
+                                                                   value="<?= htmlspecialchars($inviteUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                                            <button type="button" class="btn-secondary" data-copy-target="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>">Copy</button>
+                                                        </div>
+                                                        <form method="post" action="/admin/?section=competitors" class="inline-form" style="margin-top:0.4rem;" onsubmit="return confirm('Revoke this invite link?');">
+                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                                                            <input type="hidden" name="section" value="competitors">
+                                                            <input type="hidden" name="action" value="revoke_invite">
+                                                            <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
+                                                            <button type="submit" class="btn-secondary">Revoke</button>
+                                                        </form>
+                                                    <?php elseif ($status === 'revoked' || $status === 'expired'): ?>
+                                                        <span class="cell-muted"><?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?></span>
+                                                    <?php else: ?>
+                                                        <span class="cell-muted">Used</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
                         <?php endif; ?>
-                    </div>
-                </div>
-                <button type="submit" class="btn-primary judge-submit">Create judge</button>
-            </form>
+                    </section>
 
-            <?php if ($staff !== []): ?>
-                <div class="table-wrap" style="margin-top: 1.25rem;">
-                    <table class="admin-table">
-                        <thead>
-                            <tr>
-                                <th scope="col">Role</th>
-                                <th scope="col">Name</th>
-                                <th scope="col">Email</th>
-                                <th scope="col">Created</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($staff as $staffUser): ?>
-                                <tr>
-                                    <td>
-                                        <span class="status-pill status-<?= htmlspecialchars((string) $staffUser['role'], ENT_QUOTES, 'UTF-8') ?>">
-                                            <?= htmlspecialchars((string) $staffUser['role'], ENT_QUOTES, 'UTF-8') ?>
-                                        </span>
-                                    </td>
-                                    <td><?= htmlspecialchars((string) $staffUser['name'], ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td><?= htmlspecialchars((string) $staffUser['email'], ENT_QUOTES, 'UTF-8') ?></td>
-                                    <td class="cell-muted"><?= htmlspecialchars((string) ($staffUser['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </section>
-    </main>
+                <?php elseif ($section === 'scores'): ?>
+                    <section class="admin-section">
+                        <p class="page-lead">Scores grouped by competitor (one score each). Send PDF scorecards when ready.</p>
+                        <?php if ($scores === []): ?>
+                            <p class="empty-note">No scores submitted yet.</p>
+                        <?php else: ?>
+                            <div class="table-wrap">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Competitor</th>
+                                            <th scope="col">Event</th>
+                                            <th scope="col">Judge</th>
+                                            <th scope="col">Total</th>
+                                            <th scope="col">Email status</th>
+                                            <th scope="col">Scored at</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($scores as $score): ?>
+                                            <?php
+                                            $vehicle = competitorVehicleLabel($score);
+                                            $sentAt = $score['scorecard_sent_at'] ?? null;
+                                            $cid = $score['competitor_id'] !== null ? (int) $score['competitor_id'] : 0;
+                                            ?>
+                                            <tr>
+                                                <td>
+                                                    <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <div class="cell-sub"><?= htmlspecialchars((string) $score['competitor_email'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                </td>
+                                                <td>
+                                                    <?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?>
+                                                    <div class="cell-sub"><?= htmlspecialchars((string) $score['event_date'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <?php if (!empty($score['placement'])): ?>
+                                                        <div class="cell-sub">Placement: <?= htmlspecialchars((string) $score['placement'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?= htmlspecialchars((string) $score['judge_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td>
+                                                    <strong><?= (int) $score['grand_total'] ?></strong><span class="total-max"> / 230</span>
+                                                    <div class="cell-sub">Tonal <?= (int) $score['tonal_total'] ?> · Stage <?= (int) $score['stage_total'] ?></div>
+                                                </td>
+                                                <td>
+                                                    <?php if ($cid > 0): ?>
+                                                        <div class="admin-actions">
+                                                            <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= $cid ?>">Download PDF</a>
+                                                            <form method="post" action="/admin/?section=scores" class="inline-form">
+                                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                                                                <input type="hidden" name="section" value="scores">
+                                                                <input type="hidden" name="action" value="send_scorecard">
+                                                                <input type="hidden" name="competitor_id" value="<?= $cid ?>">
+                                                                <button type="submit" class="btn-secondary"><?= $sentAt ? 'Resend email' : 'Send email' ?></button>
+                                                            </form>
+                                                        </div>
+                                                        <?php if ($sentAt): ?>
+                                                            <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
+                                                        <?php else: ?>
+                                                            <div class="cell-sub cell-warn">Not sent</div>
+                                                        <?php endif; ?>
+                                                    <?php else: ?>
+                                                        <span class="cell-muted">Legacy score (no competitor link)</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="cell-muted"><?= htmlspecialchars((string) ($score['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+
+                <?php elseif ($section === 'events'): ?>
+                    <section class="admin-section">
+                        <p class="page-lead">Reusable event catalog for judges. Scores still store event name/date for PDFs and the public scoreboard.</p>
+                        <form method="post" action="/admin/?section=events" class="judge-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="section" value="events">
+                            <input type="hidden" name="action" value="create_event">
+                            <div class="field-grid">
+                                <div class="field<?= isset($eventErrors['name']) ? ' is-invalid' : '' ?>">
+                                    <label for="event_name_new">Event name</label>
+                                    <input type="text" id="event_name_new" name="name" maxlength="255" required
+                                           value="<?= htmlspecialchars($eventForm['name'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?php if (isset($eventErrors['name'])): ?>
+                                        <p class="field-error"><?= htmlspecialchars($eventErrors['name'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="field<?= isset($eventErrors['event_date']) ? ' is-invalid' : '' ?>">
+                                    <label for="event_date_new">Event date</label>
+                                    <input type="date" id="event_date_new" name="event_date" required
+                                           value="<?= htmlspecialchars($eventForm['event_date'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?php if (isset($eventErrors['event_date'])): ?>
+                                        <p class="field-error"><?= htmlspecialchars($eventErrors['event_date'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary judge-submit">Add event</button>
+                        </form>
+                        <?php if ($events === []): ?>
+                            <p class="empty-note">No events yet. Judges can still type event details until you add some.</p>
+                        <?php else: ?>
+                            <div class="table-wrap" style="margin-top: 1.25rem;">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Date</th>
+                                            <th scope="col">Created</th>
+                                            <th scope="col"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($events as $ev): ?>
+                                            <tr>
+                                                <td><strong><?= htmlspecialchars((string) $ev['name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
+                                                <td><?= htmlspecialchars((string) $ev['event_date'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td class="cell-muted"><?= htmlspecialchars((string) ($ev['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td>
+                                                    <form method="post" action="/admin/?section=events" class="inline-form" onsubmit="return confirm('Delete this event?');">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                                                        <input type="hidden" name="section" value="events">
+                                                        <input type="hidden" name="action" value="delete_event">
+                                                        <input type="hidden" name="event_id" value="<?= (int) $ev['id'] ?>">
+                                                        <button type="submit" class="btn-secondary">Delete</button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+
+                <?php elseif ($section === 'judges'): ?>
+                    <section class="admin-section">
+                        <p class="page-lead">Create judge logins (email + password). Admins are seeded separately.</p>
+                        <form method="post" action="/admin/?section=judges" class="judge-form">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+                            <input type="hidden" name="section" value="judges">
+                            <input type="hidden" name="action" value="create_judge">
+                            <div class="field-grid">
+                                <div class="field<?= isset($judgeErrors['name']) ? ' is-invalid' : '' ?>">
+                                    <label for="judge_name">Name</label>
+                                    <input type="text" id="judge_name" name="name" maxlength="255" required
+                                           value="<?= htmlspecialchars($judgeForm['name'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <?php if (isset($judgeErrors['name'])): ?>
+                                        <p class="field-error"><?= htmlspecialchars($judgeErrors['name'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="field<?= isset($judgeErrors['email']) ? ' is-invalid' : '' ?>">
+                                    <label for="judge_email">Email</label>
+                                    <input type="email" id="judge_email" name="email" maxlength="255" required
+                                           value="<?= htmlspecialchars($judgeForm['email'], ENT_QUOTES, 'UTF-8') ?>"
+                                           autocomplete="off">
+                                    <?php if (isset($judgeErrors['email'])): ?>
+                                        <p class="field-error"><?= htmlspecialchars($judgeErrors['email'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="field<?= isset($judgeErrors['password']) ? ' is-invalid' : '' ?>">
+                                    <label for="judge_password">Temporary password</label>
+                                    <input type="text" id="judge_password" name="password" minlength="8" maxlength="72" required
+                                           autocomplete="new-password">
+                                    <?php if (isset($judgeErrors['password'])): ?>
+                                        <p class="field-error"><?= htmlspecialchars($judgeErrors['password'], ENT_QUOTES, 'UTF-8') ?></p>
+                                    <?php else: ?>
+                                        <p class="field-hint">At least 8 characters. Share with the judge securely.</p>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn-primary judge-submit">Create judge</button>
+                        </form>
+                        <?php if ($staff !== []): ?>
+                            <div class="table-wrap" style="margin-top: 1.25rem;">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Role</th>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Email</th>
+                                            <th scope="col">Created</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($staff as $staffUser): ?>
+                                            <tr>
+                                                <td>
+                                                    <span class="status-pill status-<?= htmlspecialchars((string) $staffUser['role'], ENT_QUOTES, 'UTF-8') ?>">
+                                                        <?= htmlspecialchars((string) $staffUser['role'], ENT_QUOTES, 'UTF-8') ?>
+                                                    </span>
+                                                </td>
+                                                <td><?= htmlspecialchars((string) $staffUser['name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td><?= htmlspecialchars((string) $staffUser['email'], ENT_QUOTES, 'UTF-8') ?></td>
+                                                <td class="cell-muted"><?= htmlspecialchars((string) ($staffUser['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+                <?php endif; ?>
+            </main>
+        </div>
+    </div>
+
+    <div class="admin-backdrop" id="admin-backdrop" hidden></div>
 
     <script>
-        document.querySelectorAll('[data-copy-target]').forEach(function (btn) {
-            btn.addEventListener('click', async function () {
-                var id = btn.getAttribute('data-copy-target');
-                var input = id ? document.getElementById(id) : null;
-                if (!input) return;
-                var text = input.value;
-                try {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        await navigator.clipboard.writeText(text);
-                    } else {
-                        input.select();
-                        document.execCommand('copy');
-                    }
-                    var prev = btn.textContent;
-                    btn.textContent = 'Copied';
-                    setTimeout(function () { btn.textContent = prev; }, 1500);
-                } catch (e) {
-                    input.select();
-                }
+        (function () {
+            var btn = document.getElementById('admin-menu-btn');
+            var sidebar = document.getElementById('admin-sidebar');
+            var backdrop = document.getElementById('admin-backdrop');
+            if (!btn || !sidebar) return;
+
+            function setOpen(open) {
+                document.body.classList.toggle('admin-nav-open', open);
+                btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+                if (backdrop) backdrop.hidden = !open;
+            }
+
+            btn.addEventListener('click', function () {
+                setOpen(!document.body.classList.contains('admin-nav-open'));
             });
-        });
+            if (backdrop) {
+                backdrop.addEventListener('click', function () { setOpen(false); });
+            }
+
+            document.querySelectorAll('[data-copy-target]').forEach(function (copyBtn) {
+                copyBtn.addEventListener('click', async function () {
+                    var id = copyBtn.getAttribute('data-copy-target');
+                    var input = id ? document.getElementById(id) : null;
+                    if (!input) return;
+                    var text = input.value;
+                    try {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            await navigator.clipboard.writeText(text);
+                        } else {
+                            input.select();
+                            document.execCommand('copy');
+                        }
+                        var prev = copyBtn.textContent;
+                        copyBtn.textContent = 'Copied';
+                        setTimeout(function () { copyBtn.textContent = prev; }, 1500);
+                    } catch (e) {
+                        input.select();
+                    }
+                });
+            });
+        })();
     </script>
 </body>
 </html>
