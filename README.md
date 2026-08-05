@@ -1,6 +1,6 @@
 # Florida Sound Quality — Scoring Web App
 
-Mobile-first PHP + MySQL app for car-audio competitions. Admins invite competitors; competitors register via unique links (no accounts); judges log in and score registered competitors; admins send PDF scorecards by email when ready. A public scoreboard shows live standings.
+Mobile-first PHP + MySQL app for car-audio competitions. Admins invite competitors; competitors register via unique links (no accounts); judges log in and score registered competitors; admins send PDF scorecards by email when ready. Staff can view a live scoreboard after login.
 
 No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 
@@ -13,7 +13,7 @@ No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 | Staff login | https://web-production-35b3e.up.railway.app/login.php |
 | Judge competitors / scoring | https://web-production-35b3e.up.railway.app/score.php |
 | Admin panel | https://web-production-35b3e.up.railway.app/admin/ |
-| Public scoreboard | https://web-production-35b3e.up.railway.app/scoreboard.php |
+| Scoreboard (staff) | https://web-production-35b3e.up.railway.app/scoreboard.php |
 
 Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outside the web root and inaccessible via HTTP.
 
@@ -167,9 +167,11 @@ Bucket stores:
 
 Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is saved on `scores.paper_sheet_key` when upload succeeds.
 
-## Public scoreboard (Spec §2.4)
+## Scoreboard (staff only)
 
-- No login required; polled every 5 seconds
+Live standings at `/scoreboard.php` — **admin or judge login required**. Polls `/api/scores.php` every 5 seconds. Unauthenticated visitors are redirected to login; the API returns `401`.
+
+- Polled every 5 seconds
 - Returns rank, name, vehicle (year/make/model), total score — **never** emails, notes, or judge names
 - Top 3 visually distinct (gold / amber / bronze tones — no emoji)
 - Event filterable via dropdown
@@ -241,8 +243,8 @@ After deploy / local setup:
 4. **Judge login** — `judge@floridasoundquality.local` / `judge123` → competitor list → Score
 5. **Submit score** — save succeeds; no automatic email; competitor moves to Scored
 6. **Admin Send email** — Resend/SMTP configured → competitor receives PDF; `scorecard_sent_at` set
-7. **Scoreboard** — `/scoreboard.php` shows the event standings (public, no login)
-8. **Auth gates** — judge cannot open `/admin/`; admin cannot open scoring form; logout clears session
+7. **Scoreboard** — `/scoreboard.php` requires staff login; unauthenticated users redirected
+8. **Auth gates** — judge cannot open `/admin/`; public cannot open scoreboard/API; logout clears session
 
 ## Project layout
 

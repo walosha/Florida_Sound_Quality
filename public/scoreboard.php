@@ -1,9 +1,15 @@
 <?php
 /**
- * Public live scoreboard — no login required.
+ * Staff-only live scoreboard — requires admin or judge login.
  */
 
 declare(strict_types=1);
+
+require_once __DIR__ . '/../includes/auth.php';
+
+requireRole(['admin', 'judge']);
+$user = currentUser();
+$home = homePathForRole($user['role'] ?? 'judge');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,13 +26,14 @@ declare(strict_types=1);
     <header class="app-header">
         <div class="brand">Florida Sound Quality</div>
         <nav>
-            <a href="/login.php">Judge login</a>
+            <a href="<?= htmlspecialchars($home, ENT_QUOTES, 'UTF-8') ?>">Back</a>
+            <a href="/logout.php">Log out</a>
         </nav>
     </header>
 
     <main class="scoreboard-main">
         <h1 class="page-title">Live Scoreboard</h1>
-        <p class="page-lead">Standings update every 5 seconds.</p>
+        <p class="page-lead">Staff only. Standings update every 5 seconds.</p>
 
         <div class="scoreboard-controls">
             <div class="field">

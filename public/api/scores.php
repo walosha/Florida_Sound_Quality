@@ -1,16 +1,25 @@
 <?php
 /**
- * GET /api/scores.php — public live scoreboard JSON.
+ * GET /api/scores.php — staff-only live scoreboard JSON.
  * Never returns email, notes, or judge name.
  * Prefers live competitor profile fields when a score is linked.
  */
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/db.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
+
+startAppSession();
+$user = currentUser();
+if ($user === null || !in_array($user['role'], ['admin', 'judge'], true)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized. Staff login required.']);
+    exit;
+}
 
 $action = $_GET['action'] ?? 'scores';
 

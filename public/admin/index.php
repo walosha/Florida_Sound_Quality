@@ -552,7 +552,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
 
                 <?php elseif ($section === 'events'): ?>
                     <section class="admin-section">
-                        <p class="page-lead">Reusable event catalog for judges. Scores still store event name/date for PDFs and the public scoreboard.</p>
+                        <p class="page-lead">Reusable event catalog for judges. Scores still store event name/date for PDFs and the staff scoreboard.</p>
                         <form method="post" action="/admin/?section=events" class="judge-form">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
                             <input type="hidden" name="section" value="events">
