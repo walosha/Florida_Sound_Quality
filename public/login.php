@@ -1,6 +1,6 @@
 <?php
 /**
- * Judge login — form + POST handler with rate limiting and CSRF.
+ * Staff login (admin / judge) — email + password with rate limiting and CSRF.
  */
 
 declare(strict_types=1);
@@ -9,13 +9,15 @@ require_once __DIR__ . '/../includes/auth.php';
 
 startAppSession();
 
-if (!empty($_SESSION['authenticated'])) {
-    header('Location: /score.php');
+if (isLoggedIn()) {
+    $user = currentUser();
+    header('Location: ' . homePathForRole($user['role'] ?? 'judge'));
     exit;
 }
 
 $error = '';
 $ip = clientIp();
+$emailValue = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
@@ -23,14 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (isLoginLockedOut($ip)) {
         $error = 'Too many failed attempts. Try again in 15 minutes.';
     } else {
+        $emailValue = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
 
-        if (verifyJudgePassword($password)) {
+        $user = authenticateUser($emailValue, $password);
+        if ($user !== null) {
             clearLoginAttempts($ip);
-            session_regenerate_id(true);
-            $_SESSION['authenticated'] = true;
-            unset($_SESSION['csrf_token']);
-            header('Location: /score.php');
+            loginUser($user);
+            header('Location: ' . homePathForRole((string) $user['role']));
             exit;
         }
 
@@ -38,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isLoginLockedOut($ip)) {
             $error = 'Too many failed attempts. Try again in 15 minutes.';
         } else {
-            $error = 'Incorrect password.';
+            $error = 'Incorrect email or password.';
         }
     }
 }
@@ -50,7 +52,7 @@ $token = csrfToken();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Judge Login — Florida Sound Quality</title>
+    <title>Login — Florida Sound Quality</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
@@ -59,14 +61,27 @@ $token = csrfToken();
 <body class="page-login">
     <main class="login-panel">
         <h1>Florida Sound Quality</h1>
-        <p class="lead">Judge login</p>
+        <p class="lead">Staff login</p>
 
         <?php if ($error !== ''): ?>
             <p role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
         <?php endif; ?>
 
-        <form method="post" action="/login.php" autocomplete="off">
+        <form method="post" action="/login.php" autocomplete="on">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
+            <div class="field">
+                <label for="email">Email</label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    autofocus
+                    autocomplete="username"
+                    maxlength="255"
+                    value="<?= htmlspecialchars($emailValue, ENT_QUOTES, 'UTF-8') ?>"
+                >
+            </div>
             <div class="field">
                 <label for="password">Password</label>
                 <input
@@ -74,7 +89,6 @@ $token = csrfToken();
                     id="password"
                     name="password"
                     required
-                    autofocus
                     autocomplete="current-password"
                 >
             </div>

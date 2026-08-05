@@ -2,9 +2,47 @@
 -- MySQL 5.7+ / Railway MySQL
 -- Import once: mysql < schema.sql   or   railway connect MySQL < schema.sql
 
+CREATE TABLE IF NOT EXISTS users (
+    id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    email           VARCHAR(255)     NOT NULL,
+    password_hash   VARCHAR(255)     NOT NULL,
+    name            VARCHAR(255)     NOT NULL,
+    role            ENUM('admin', 'judge') NOT NULL,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_users_email (email),
+    INDEX idx_users_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS competitors (
+    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    invite_token       CHAR(64)         NOT NULL,
+    status             ENUM('invited', 'registered', 'scored') NOT NULL DEFAULT 'invited',
+    name               VARCHAR(255)     NULL,
+    email              VARCHAR(255)     NULL,
+    vehicle_year       SMALLINT UNSIGNED NULL,
+    vehicle_make       VARCHAR(100)     NULL,
+    vehicle_model      VARCHAR(100)     NULL,
+    vehicle_color      VARCHAR(50)      NULL,
+    created_by_user_id INT UNSIGNED     NULL,
+    registered_at      TIMESTAMP        NULL,
+    scorecard_sent_at  TIMESTAMP        NULL,
+    created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_invite_token (invite_token),
+    INDEX idx_competitors_status (status),
+    INDEX idx_competitors_email (email),
+    CONSTRAINT fk_competitors_created_by
+        FOREIGN KEY (created_by_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS scores (
     id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     submission_uuid  CHAR(36)         NOT NULL,
+    -- linked entities (Phase 0+; denormalized competitor fields kept for PDF/scoreboard)
+    competitor_id    INT UNSIGNED     NULL,
+    judge_user_id    INT UNSIGNED     NULL,
     -- header
     event_date       DATE             NOT NULL,
     event_name       VARCHAR(255)     NOT NULL,
@@ -50,8 +88,17 @@ CREATE TABLE IF NOT EXISTS scores (
     created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     UNIQUE KEY uq_submission (submission_uuid),
+    -- one score per competitor (NULLs allowed for legacy rows)
+    UNIQUE KEY uq_scores_competitor (competitor_id),
     INDEX idx_event (event_name),
-    INDEX idx_total (grand_total DESC)
+    INDEX idx_total (grand_total DESC),
+    INDEX idx_scores_judge (judge_user_id),
+    CONSTRAINT fk_scores_competitor
+        FOREIGN KEY (competitor_id) REFERENCES competitors(id)
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_scores_judge
+        FOREIGN KEY (judge_user_id) REFERENCES users(id)
+        ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS rate_limit (

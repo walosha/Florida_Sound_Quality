@@ -10,8 +10,9 @@ No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 
 | Page | URL |
 |------|-----|
-| Judge login | https://web-production-35b3e.up.railway.app/login.php |
-| Scoring form (protected) | https://web-production-35b3e.up.railway.app/score.php |
+| Staff login | https://web-production-35b3e.up.railway.app/login.php |
+| Scoring form (judge) | https://web-production-35b3e.up.railway.app/score.php |
+| Admin stub | https://web-production-35b3e.up.railway.app/admin/ |
 | Public scoreboard | https://web-production-35b3e.up.railway.app/scoreboard.php |
 
 Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outside the web root and inaccessible via HTTP.
@@ -41,7 +42,7 @@ Full source on `main`, including:
 ```bash
 composer install
 cp .env.example .env
-# Fill MYSQL_* vars and JUDGE_PASSWORD_HASH
+# Fill MYSQL_* vars
 
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS florida_sound_quality"
 mysql -u root florida_sound_quality < schema.sql
@@ -51,20 +52,21 @@ mysql -u root florida_sound_quality < seed.sql
 php -S 127.0.0.1:8000 -t public router.php
 ```
 
-- Judge form: http://127.0.0.1:8000/login.php
+- Staff login: http://127.0.0.1:8000/login.php
 - Scoreboard: http://127.0.0.1:8000/scoreboard.php
 
-### Test judge password
+### Seed staff accounts
 
-Default local hash in `.env` is for password: **`judge123`**
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | `admin@floridasoundquality.local` | `admin123` |
+| Judge | `judge@floridasoundquality.local` | `judge123` |
 
-Generate a new hash:
+Change these in production (update `users.password_hash`). Generate a new hash:
 
 ```bash
 php -r "echo password_hash('your-password', PASSWORD_BCRYPT), PHP_EOL;"
 ```
-
-Set `JUDGE_PASSWORD_HASH` in `.env` (local) or Railway service variables.
 
 ## Railway deploy
 
@@ -77,8 +79,8 @@ Set `JUDGE_PASSWORD_HASH` in `.env` (local) or Railway service variables.
    - `MYSQLUSER=${{MySQL.MYSQLUSER}}`
    - `MYSQLPASSWORD=${{MySQL.MYSQLPASSWORD}}`
    - `MYSQLDATABASE=${{MySQL.MYSQLDATABASE}}`
-   - `JUDGE_PASSWORD_HASH=…`
    - Resend / SMTP and S3 vars below when email/storage are needed
+   - Staff logins come from the `users` table (`seed.sql`) — no `JUDGE_PASSWORD_HASH`
 
 4. Procfile / `railway.json` start: `vendor/bin/heroku-php-apache2 public/`
 5. One-time schema + seed (requires Railway CLI + registered SSH key):
@@ -90,7 +92,13 @@ cat schema.sql | railway connect MySQL --ssh
 cat seed.sql   | railway connect MySQL --ssh
 ```
 
-Existing DBs: apply `migrations/2026-08-04_paper_sheet_key.sql` the same way (already applied on Railway production).
+Existing DBs: apply migrations in order (once each):
+
+```bash
+cat migrations/2026-08-04_paper_sheet_key.sql | railway connect MySQL --ssh
+cat migrations/2026-08-05_users_competitors_auth.sql | railway connect MySQL --ssh
+cat seed.sql | railway connect MySQL --ssh   # seeds admin + judge users
+```
 
 6. Generate a public domain on the web service.
 
@@ -104,12 +112,12 @@ Railway was chosen for managed MySQL and free HTTPS. The same tree can be upload
 
 ## Security (Spec §4)
 
-- **Password:** bcrypt hash in `JUDGE_PASSWORD_HASH` env var — never in client-side files
+- **Password:** bcrypt hashes in the `users` table — never in client-side files
 - **SQL:** all queries use prepared statements (zero string concatenation)
 - **Output escaping:** `htmlspecialchars()` on user-supplied data (notes, competitor names) in scoreboard JSON contexts and the email PDF
 - **CSRF:** per-session token, verified on login and `/submit.php` POST
 - **Rate limiting:** 5 failed login attempts per IP per 15 minutes → lockout (`rate_limit` table)
-- **Auth:** session-based; unauthenticated requests redirect to `/login.php`
+- **Auth:** session-based with roles (`admin` / `judge`); unauthenticated requests redirect to `/login.php`
 - Sessions stored in MySQL (`sessions` table) so Railway redeploys don’t log judges out
 - HTTPS cookie `secure` flag via `X-Forwarded-Proto` (Railway edge TLS)
 - `includes/` is outside `public/` document root → not HTTP-reachable
@@ -189,36 +197,38 @@ Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is sa
 
 **Implemented as specified**
 
-- Single shared judge password (no per-judge accounts)
+- Role-based staff accounts (`admin` / `judge`) with email + password
 - 5-second polling on scoreboard (simpler than WebSockets)
 - Vanilla HTML/CSS/JS (no frontend frameworks, no build step)
 - All validation server-side
 
-**Not implemented (trade-offs)**
+**Not implemented yet (in progress across phases)**
 
-- Event management CRUD — events are free-text `VARCHAR` on the scores table (no admin UI needed for v1)
-- Offline draft recovery — out of scope for MVP; `sessionStorage` approach sketched under “With more time”
-- Per-judge accounts — single bcrypt password matches the “small trusted judge pool” model in spec §2.1
-
+- Competitor invite links + registration (Phase 1)
+- Judge competitor list / score-by-selection (Phase 2)
+- Admin panel: invites, scores, manual scorecard email (Phase 3)
+- Event management CRUD — events remain free-text `VARCHAR` on scores for now
+- Offline draft recovery — out of scope for MVP
 **Optional enhancement (bonus)**
 
 - Judges may upload a photo of the original paper form as a private S3 reference. Optional; does not block submission.
 
 ### Events design detail
 
-Events are a **VARCHAR column** on `scores`, not a separate table. The spec treats event as free text with no admin CRUD or FK needs. A dedicated table would add joins for no current benefit. Multiple judges may score the same competitor at the same event (no uniqueness on competitor+event).
+Events are a **VARCHAR column** on `scores`, not a separate table. The spec treats event as free text with no admin CRUD or FK needs. A dedicated table would add joins for no current benefit. **One score per competitor** is enforced via `UNIQUE(scores.competitor_id)` once Phase 2 links submissions to registered competitors.
 
 ## Project layout
 
 ```
 public/           ← web root
   login.php, score.php, submit.php, scoreboard.php, logout.php
+  admin/index.php
   api/scores.php
   css/style.css
   js/score-form.js, scoreboard.js
 includes/         ← not web-accessible
   config.php, db.php, auth.php, validation.php, pdf.php, email.php, storage.php
-schema.sql, seed.sql, Procfile, railway.json, router.php
+schema.sql, seed.sql, migrations/, Procfile, railway.json, router.php
 ```
 
 ## With more time

@@ -1,6 +1,6 @@
 <?php
 /**
- * DB-backed session handler + auth helpers.
+ * DB-backed session handler + role-based auth helpers.
  *
  * Sessions live in MySQL so they survive Railway container redeploys
  * and can be shared across replicas.
@@ -90,36 +90,130 @@ function startAppSession(): void
 }
 
 /**
- * Redirect to login if the judge is not authenticated.
+ * Redirect to login if not authenticated.
  */
 function requireLogin(): void
 {
     startAppSession();
 
-    if (empty($_SESSION['authenticated'])) {
+    if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
         header('Location: /login.php');
         exit;
     }
 }
 
 /**
- * Whether the current session is an authenticated judge.
+ * Require an authenticated user with one of the given roles.
+ *
+ * @param string|list<string> $roles
+ */
+function requireRole(string|array $roles): void
+{
+    requireLogin();
+
+    $allowed = is_array($roles) ? $roles : [$roles];
+    $role = (string) ($_SESSION['user_role'] ?? '');
+
+    if (!in_array($role, $allowed, true)) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Forbidden.';
+        exit;
+    }
+}
+
+/**
+ * Whether the current session is authenticated.
  */
 function isLoggedIn(): bool
 {
     startAppSession();
-    return !empty($_SESSION['authenticated']);
+    return !empty($_SESSION['authenticated']) && !empty($_SESSION['user_id']);
 }
 
 /**
- * Verify a plaintext password against JUDGE_PASSWORD_HASH.
+ * Current user row from session, or null.
+ *
+ * @return array{id:int, email:string, name:string, role:string}|null
  */
-function verifyJudgePassword(string $password): bool
+function currentUser(): ?array
 {
-    if (JUDGE_PASSWORD_HASH === '') {
-        return false;
+    startAppSession();
+    if (empty($_SESSION['authenticated']) || empty($_SESSION['user_id'])) {
+        return null;
     }
-    return password_verify($password, JUDGE_PASSWORD_HASH);
+
+    return [
+        'id'    => (int) $_SESSION['user_id'],
+        'email' => (string) ($_SESSION['user_email'] ?? ''),
+        'name'  => (string) ($_SESSION['user_name'] ?? ''),
+        'role'  => (string) ($_SESSION['user_role'] ?? ''),
+    ];
+}
+
+/**
+ * True if the logged-in user has the given role.
+ */
+function userHasRole(string $role): bool
+{
+    $user = currentUser();
+    return $user !== null && $user['role'] === $role;
+}
+
+/**
+ * Establish a logged-in session from a users-table row.
+ *
+ * @param array<string, mixed> $user
+ */
+function loginUser(array $user): void
+{
+    startAppSession();
+    session_regenerate_id(true);
+    $_SESSION['authenticated'] = true;
+    $_SESSION['user_id'] = (int) $user['id'];
+    $_SESSION['user_email'] = (string) $user['email'];
+    $_SESSION['user_name'] = (string) $user['name'];
+    $_SESSION['user_role'] = (string) $user['role'];
+    unset($_SESSION['csrf_token']);
+}
+
+/**
+ * Look up a user by email and verify password. Returns the row or null.
+ *
+ * @return array<string, mixed>|null
+ */
+function authenticateUser(string $email, string $password): ?array
+{
+    $email = strtolower(trim($email));
+    if ($email === '' || $password === '') {
+        return null;
+    }
+
+    $user = dbFetchOne(
+        'SELECT id, email, password_hash, name, role FROM users WHERE email = ?',
+        [$email]
+    );
+    if ($user === null) {
+        return null;
+    }
+
+    if (!password_verify($password, (string) $user['password_hash'])) {
+        return null;
+    }
+
+    return $user;
+}
+
+/**
+ * Post-login destination by role.
+ */
+function homePathForRole(string $role): string
+{
+    return match ($role) {
+        'admin' => '/admin/',
+        'judge' => '/score.php',
+        default => '/login.php',
+    };
 }
 
 /**

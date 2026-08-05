@@ -14,7 +14,9 @@ require_once __DIR__ . '/../includes/storage.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
 
-requireLogin();
+requireRole('judge');
+
+$judge = currentUser();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -66,10 +68,17 @@ if ($existing !== null) {
     exit;
 }
 
+// Prefer session identity for judge attribution (Phase 0); form name still accepted.
+$judgeUserId = $judge !== null ? $judge['id'] : null;
+$judgeName = $judge !== null && $judge['name'] !== ''
+    ? $judge['name']
+    : (string) $data['judge_name'];
+
 try {
     dbQuery(
         'INSERT INTO scores (
-            submission_uuid, event_date, event_name, judge_name,
+            submission_uuid, competitor_id, judge_user_id,
+            event_date, event_name, judge_name,
             competitor_name, competitor_email,
             vehicle_year, vehicle_make, vehicle_model, vehicle_color,
             sub_bass, mid_bass, midrange, high_freq, spectral_balance, tonal_notes,
@@ -78,7 +87,8 @@ try {
             noise, listening_pleasure, noise_notes, listening_notes,
             tonal_total, stage_total, grand_total, placement, paper_sheet_key
         ) VALUES (
-            ?, ?, ?, ?,
+            ?, ?, ?,
+            ?, ?, ?,
             ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
@@ -89,9 +99,11 @@ try {
         )',
         [
             $data['submission_uuid'],
+            null, // competitor_id wired in Phase 2
+            $judgeUserId,
             $data['event_date'],
             $data['event_name'],
-            $data['judge_name'],
+            $judgeName,
             $data['competitor_name'],
             $data['competitor_email'],
             $data['vehicle_year'],

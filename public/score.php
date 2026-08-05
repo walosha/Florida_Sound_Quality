@@ -8,8 +8,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
 
-requireLogin();
+requireRole('judge');
 $token = csrfToken();
+$judge = currentUser();
 
 /**
  * Render a large-tap stepper control.
@@ -91,7 +92,15 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                     </div>
                     <div class="field">
                         <label for="judge_name">Judge name</label>
-                        <input type="text" id="judge_name" name="judge_name" maxlength="255" required>
+                        <input
+                            type="text"
+                            id="judge_name"
+                            name="judge_name"
+                            maxlength="255"
+                            required
+                            value="<?= htmlspecialchars($judge['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                            readonly
+                        >
                         <p class="field-error" hidden></p>
                     </div>
                     <div class="field">

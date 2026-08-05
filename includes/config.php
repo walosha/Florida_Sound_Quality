@@ -98,8 +98,8 @@ define('DB_PASS', $mysqlPass ?? '');
 define('DB_NAME', $mysqlDb ?? 'florida_sound_quality');
 
 // --- Auth --------------------------------------------------------------------
-
-define('JUDGE_PASSWORD_HASH', env('JUDGE_PASSWORD_HASH') ?? '');
+// Staff accounts live in the `users` table (seeded admin + judge).
+// JUDGE_PASSWORD_HASH is retired; kept only so old .env files do not break loadEnv.
 
 // --- Mail (Resend preferred; SMTP fallback) ---------------------------------
 
