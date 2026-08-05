@@ -418,6 +418,366 @@ button[type="submit"]:disabled {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.9rem;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-secondary:hover {
+  background: #333;
+  color: var(--text);
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* —— Competitor registration —— */
+.page-register {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem var(--pad) 3rem;
+}
+
+.register-panel {
+  width: 100%;
+  max-width: 28rem;
+  padding: 1.75rem 1.35rem 2rem;
+  background: var(--bg-elevated);
+}
+
+.register-panel h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.65rem;
+  font-weight: 700;
+}
+
+.register-panel .lead {
+  margin: 0 0 1.25rem;
+  color: var(--text-muted);
+}
+
+.reg-subhead {
+  margin: 1.25rem 0 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.reg-summary {
+  margin: 1.25rem 0 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.reg-summary dt {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.reg-summary dd {
+  margin: 0.15rem 0 0;
+}
+
+.flash {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--bg-soft);
+}
+
+.flash-ok {
+  color: var(--ok);
+}
+
+.flash-error {
+  color: var(--danger);
+}
+
+/* —— Admin —— */
+.page-admin {
+  padding-bottom: 3rem;
+}
+
+.admin-top {
+  background: var(--bg-elevated);
+  padding: 1.25rem var(--pad);
+  margin-bottom: 1.5rem;
+}
+
+.admin-top-inner {
+  max-width: 56rem;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-logout {
+  font-weight: 600;
+  white-space: nowrap;
+  margin-top: 0.35rem;
+}
+
+.admin-main {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+.admin-section {
+  margin-bottom: 2rem;
+  padding: 1.25rem 1.1rem 1.5rem;
+  background: var(--bg-elevated);
+}
+
+.admin-section h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.invite-form {
+  margin: 1rem 0 0;
+  max-width: 18rem;
+}
+
+.invite-result {
+  margin-top: 1.25rem;
+}
+
+.invite-result label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.invite-copy-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.invite-copy-row--compact {
+  min-width: 14rem;
+}
+
+.invite-url {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 0;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin-top: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 0.75rem 0.65rem;
+  text-align: left;
+  vertical-align: top;
+  background: transparent;
+}
+
+.admin-table th {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.admin-table tbody tr:nth-child(odd) td {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.cell-sub {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.cell-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.empty-note {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+}
+
+.status-invited {
+  color: var(--warn);
+}
+
+.status-registered {
+  color: var(--ok);
+}
+
+.status-scored {
+  color: var(--accent-hot);
+}
+
+.status-revoked,
+.status-expired {
+  color: var(--danger);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.admin-actions .btn-secondary {
+  text-decoration: none;
+}
+
+.score-section select {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.7rem 0.85rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 0;
+  border-radius: 0;
+  outline: none;
+}
+
+.status-admin {
+  color: var(--accent-hot);
+}
+
+.status-judge {
+  color: var(--ok);
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.55rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .admin-stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.admin-stat {
+  padding: 1rem 1.1rem;
+  background: var(--bg-elevated);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-stat strong {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--accent-hot);
+  line-height: 1;
+}
+
+.admin-stat span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.inline-form {
+  margin: 0;
+}
+
+.inline-form button[type="submit"] {
+  display: inline-flex;
+  width: auto;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.inline-form button[type="submit"]:hover {
+  background: #333;
+  color: var(--text);
+}
+
+.cell-warn {
+  color: var(--warn);
+}
+
+.judge-form {
+  margin-top: 1rem;
+}
+
+.judge-form .judge-submit {
+  margin-top: 0.5rem;
+  max-width: 16rem;
+}
+
 .form-status {
   margin-bottom: 1rem;
   padding: 0.85rem 1rem;
@@ -563,4 +923,76 @@ button[type="submit"]:disabled {
   .grand-total-bar strong {
     font-size: 2.25rem;
   }
+}
+
+/* —— Judge competitor list —— */
+.back-link {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.judge-competitor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.judge-competitor-card {
+  background: var(--bg-elevated);
+}
+
+.judge-competitor-card.is-scored {
+  opacity: 0.85;
+}
+
+.judge-competitor-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.judge-competitor-link:hover,
+a.judge-competitor-link:focus-visible {
+  background: var(--bg-soft);
+  color: inherit;
+}
+
+.judge-competitor-main {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.judge-competitor-main strong {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+.judge-competitor-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.judge-action {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  color: var(--accent-hot);
+}
+
+.judge-total {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--accent-hot);
 }
