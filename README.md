@@ -215,7 +215,7 @@ Live standings at `/scoreboard.php` — **admin or judge login required**. Polls
 - Queue PDF/email for slower SMTP
 - Admin UI to edit placement after the fact
 
-**Phase 1 (done):** Admin generates one invite link per competitor; competitors register at `/competitor/{token}` with name, vehicle, and email (no account).
+**Phase 1 (done):** Admin generates one invite link per competitor; competitors register at `/competitor.php?token={token}` with name, vehicle, and email (no account).
 
 **Phase 2 (done):** Judges see registered competitors, open a prefilled scoring form, save one score per competitor; scorecard email is not sent on submit.
 
@@ -238,7 +238,7 @@ Events live in an `events` table (admin CRUD). Judges pick an event from the cat
 After deploy / local setup:
 
 1. **Admin login** — `admin@floridasoundquality.local` / `admin123` → `/admin/`
-2. **Generate invite** — copy `/competitor/{token}` link
+2. **Generate invite** — copy `/competitor.php?token={token}` link
 3. **Competitor register** — open link (incognito), submit name/vehicle/email → status Registered
 4. **Judge login** — `judge@floridasoundquality.local` / `judge123` → competitor list → Score
 5. **Submit score** — save succeeds; no automatic email; competitor moves to Scored
@@ -252,7 +252,7 @@ After deploy / local setup:
 public/           ← web root
   login.php, score.php, submit.php, scoreboard.php, logout.php, competitor.php
   admin/index.php
-  .htaccess        ← /competitor/{token} rewrite
+  .htaccess        ← optional /competitor/{token} rewrite (Apache only)
   api/scores.php
   css/style.css
   js/score-form.js, scoreboard.js

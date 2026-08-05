@@ -1,7 +1,8 @@
 <?php
 /**
  * Public competitor registration via invite token.
- * Pretty URL: /competitor/{64-hex-token}  (also ?token= via rewrite)
+ * Canonical URL: /competitor.php?token={64-hex-token}. /competitor/{token} also
+ * resolves here where URL rewriting is available (Apache, local dev router).
  */
 
 declare(strict_types=1);
