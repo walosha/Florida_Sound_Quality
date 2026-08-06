@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/competitors.php';
 require_once __DIR__ . '/../../includes/admin.php';
 require_once __DIR__ . '/../../includes/events.php';
+require_once __DIR__ . '/../../includes/pagination.php';
 
 requireRole('admin');
 $user = currentUser();
@@ -125,36 +126,36 @@ $flashError = (string) ($_SESSION['admin_flash_error'] ?? '');
 unset($_SESSION['admin_flash'], $_SESSION['admin_flash_error']);
 
 $token = csrfToken();
-$competitors = listAdminCompetitors();
-$scores = listSubmittedScores();
-$staff = listStaffUsers();
-$events = listEvents();
+$counts = adminDashboardCounts();
+$registeredCount = $counts['registered'];
+$scoredCount = $counts['scored'];
+$pendingScorecards = $counts['pending_scorecards'];
 $registrationUrl = competitorRegistrationUrl();
 
-$scoredCount = 0;
-$sentCount = 0;
-$registeredCount = 0;
-foreach ($competitors as $row) {
-    $eff = competitorEffectiveStatus($row);
-    if ($eff === 'registered') {
-        $registeredCount++;
-    }
-    if (!empty($row['score_id'])) {
-        $scoredCount++;
-    }
-    if (!empty($row['scorecard_sent_at'])) {
-        $sentCount++;
-    }
-}
+$pager = paginationParams();
+$competitors = ['rows' => [], 'total' => 0];
+$scores = ['rows' => [], 'total' => 0];
+$staff = ['rows' => [], 'total' => 0];
+$events = ['rows' => [], 'total' => 0];
+$recentCompetitors = [];
+$recentScores = [];
 
-$pendingScorecards = $scoredCount - $sentCount;
-if ($pendingScorecards < 0) {
-    $pendingScorecards = 0;
+if ($section === 'overview') {
+    $recentCompetitors = listAdminCompetitors(1, 10)['rows'];
+    $recentCompetitors = array_slice($recentCompetitors, 0, 5);
+    $recentScores = listSubmittedScores(1, 10)['rows'];
+    $recentScores = array_slice($recentScores, 0, 5);
+} elseif ($section === 'competitors') {
+    $competitors = listAdminCompetitors($pager['page'], $pager['per_page']);
+} elseif ($section === 'scores') {
+    $scores = listSubmittedScores($pager['page'], $pager['per_page']);
+} elseif ($section === 'events') {
+    $events = listEventsPaginated($pager['page'], $pager['per_page']);
+} elseif ($section === 'judges') {
+    $staff = listStaffUsers($pager['page'], $pager['per_page']);
 }
 
 $pageTitle = $sections[$section] . ' — Admin';
-$recentScores = array_slice($scores, 0, 5);
-$recentCompetitors = array_slice($competitors, 0, 5);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -221,7 +222,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                 <?php if ($section === 'overview'): ?>
                     <section class="admin-stats" aria-label="Summary">
                         <a class="admin-stat" href="/admin/?section=competitors">
-                            <strong><?= count($competitors) ?></strong>
+                            <strong><?= $counts['competitors'] ?></strong>
                             <span>Competitors</span>
                         </a>
                         <a class="admin-stat" href="/admin/?section=competitors">
@@ -237,11 +238,11 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                             <span>Unsent scorecards</span>
                         </a>
                         <a class="admin-stat" href="/admin/?section=events">
-                            <strong><?= count($events) ?></strong>
+                            <strong><?= $counts['events'] ?></strong>
                             <span>Events</span>
                         </a>
                         <a class="admin-stat" href="/admin/?section=judges">
-                            <strong><?= count($staff) ?></strong>
+                            <strong><?= $counts['staff'] ?></strong>
                             <span>Staff accounts</span>
                         </a>
                     </section>
@@ -330,9 +331,10 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                 <?php elseif ($section === 'competitors'): ?>
                     <section class="admin-section">
                         <p class="page-lead">Name, vehicle, status. Download or email a PDF scorecard when a score is ready.</p>
-                        <?php if ($competitors === []): ?>
+                        <?php if ((int) $competitors['total'] === 0): ?>
                             <p class="empty-note">No competitors yet. Share the <a href="/admin/?section=invites">registration link</a>.</p>
                         <?php else: ?>
+                            <?php renderPagination($competitors, '/admin/', ['section' => 'competitors']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
@@ -345,7 +347,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($competitors as $row): ?>
+                                        <?php foreach ($competitors['rows'] as $row): ?>
                                             <?php
                                             $status = competitorEffectiveStatus($row);
                                             $vehicle = competitorVehicleLabel($row);
@@ -399,15 +401,17 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                     </tbody>
                                 </table>
                             </div>
+                            <?php renderPagination($competitors, '/admin/', ['section' => 'competitors']); ?>
                         <?php endif; ?>
                     </section>
 
                 <?php elseif ($section === 'scores'): ?>
                     <section class="admin-section">
                         <p class="page-lead">Scores grouped by competitor (one score each). Send PDF scorecards when ready.</p>
-                        <?php if ($scores === []): ?>
+                        <?php if ((int) $scores['total'] === 0): ?>
                             <p class="empty-note">No scores submitted yet.</p>
                         <?php else: ?>
+                            <?php renderPagination($scores, '/admin/', ['section' => 'scores']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
@@ -421,7 +425,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($scores as $score): ?>
+                                        <?php foreach ($scores['rows'] as $score): ?>
                                             <?php
                                             $vehicle = competitorVehicleLabel($score);
                                             $sentAt = $score['scorecard_sent_at'] ?? null;
@@ -472,6 +476,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                     </tbody>
                                 </table>
                             </div>
+                            <?php renderPagination($scores, '/admin/', ['section' => 'scores']); ?>
                         <?php endif; ?>
                     </section>
 
@@ -502,10 +507,11 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                             </div>
                             <button type="submit" class="btn-primary judge-submit">Add event</button>
                         </form>
-                        <?php if ($events === []): ?>
+                        <?php if ((int) $events['total'] === 0): ?>
                             <p class="empty-note">No events yet. Judges can still type event details until you add some.</p>
                         <?php else: ?>
-                            <div class="table-wrap" style="margin-top: 1.25rem;">
+                            <?php renderPagination($events, '/admin/', ['section' => 'events']); ?>
+                            <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
                                         <tr>
@@ -516,7 +522,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($events as $ev): ?>
+                                        <?php foreach ($events['rows'] as $ev): ?>
                                             <tr>
                                                 <td><strong><?= htmlspecialchars((string) $ev['name'], ENT_QUOTES, 'UTF-8') ?></strong></td>
                                                 <td><?= htmlspecialchars((string) $ev['event_date'], ENT_QUOTES, 'UTF-8') ?></td>
@@ -535,6 +541,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                     </tbody>
                                 </table>
                             </div>
+                            <?php renderPagination($events, '/admin/', ['section' => 'events']); ?>
                         <?php endif; ?>
                     </section>
 
@@ -576,8 +583,9 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                             </div>
                             <button type="submit" class="btn-primary judge-submit">Create judge</button>
                         </form>
-                        <?php if ($staff !== []): ?>
-                            <div class="table-wrap" style="margin-top: 1.25rem;">
+                        <?php if ((int) $staff['total'] > 0): ?>
+                            <?php renderPagination($staff, '/admin/', ['section' => 'judges']); ?>
+                            <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
                                         <tr>
@@ -588,7 +596,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($staff as $staffUser): ?>
+                                        <?php foreach ($staff['rows'] as $staffUser): ?>
                                             <tr>
                                                 <td>
                                                     <span class="status-pill status-<?= htmlspecialchars((string) $staffUser['role'], ENT_QUOTES, 'UTF-8') ?>">
@@ -603,6 +611,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                     </tbody>
                                 </table>
                             </div>
+                            <?php renderPagination($staff, '/admin/', ['section' => 'judges']); ?>
                         <?php endif; ?>
                     </section>
                 <?php endif; ?>

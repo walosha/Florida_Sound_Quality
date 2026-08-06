@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/pagination.php';
 
 /**
  * Absolute base URL for public links (no trailing slash).
@@ -106,25 +107,30 @@ function listCompetitors(): array
 }
 
 /**
- * Competitors visible to judges (registered or scored), with score summary.
+ * Competitors visible to judges (registered or scored), with score summary (paginated).
  *
- * @return list<array<string, mixed>>
+ * @return array{rows:list<array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int,offset:int,from:int,to:int}
  */
-function listJudgeCompetitors(): array
+function listJudgeCompetitors(int $page = 1, int $perPage = PAGINATION_DEFAULT_PER_PAGE): array
 {
-    return dbFetchAll(
-        'SELECT c.*,
+    $where = 'WHERE c.status IN (\'registered\', \'scored\')';
+    return dbPaginate(
+        "SELECT COUNT(*) AS cnt FROM competitors c {$where}",
+        "SELECT c.*,
                 s.id AS score_id,
                 s.grand_total,
                 s.event_name AS score_event_name,
                 s.created_at AS scored_at
          FROM competitors c
          LEFT JOIN scores s ON s.competitor_id = c.id
-         WHERE c.status IN (\'registered\', \'scored\')
+         {$where}
          ORDER BY
-           CASE c.status WHEN \'registered\' THEN 0 ELSE 1 END,
+           CASE c.status WHEN 'registered' THEN 0 ELSE 1 END,
            c.registered_at DESC,
-           c.id DESC'
+           c.id DESC",
+        [],
+        $page,
+        $perPage
     );
 }
 

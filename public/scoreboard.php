@@ -20,7 +20,7 @@ $home = homePathForRole($user['role'] ?? 'judge');
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css?v=2">
+    <link rel="stylesheet" href="/css/style.css?v=3">
 </head>
 <body class="page-scoreboard">
     <header class="app-header">
@@ -42,10 +42,37 @@ $home = homePathForRole($user['role'] ?? 'judge');
                     <option value="">Loading…</option>
                 </select>
             </div>
+            <div class="field">
+                <label for="per-page-filter">Per page</label>
+                <select id="per-page-filter" aria-label="Results per page">
+                    <option value="10">10</option>
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="scoreboard-pagination" class="list-pagination" hidden>
+            <p class="list-pagination-range" id="scoreboard-range"></p>
+            <div class="list-pagination-nav">
+                <button type="button" class="btn-secondary" id="scoreboard-prev">Previous</button>
+                <span class="list-pagination-page" id="scoreboard-page"></span>
+                <button type="button" class="btn-secondary" id="scoreboard-next">Next</button>
+            </div>
         </div>
 
         <ol id="score-list" class="score-list" aria-live="polite"></ol>
         <p id="scoreboard-empty" class="scoreboard-empty" hidden>No scores yet for this event.</p>
+
+        <div id="scoreboard-pagination-bottom" class="list-pagination" hidden>
+            <p class="list-pagination-range" id="scoreboard-range-bottom"></p>
+            <div class="list-pagination-nav">
+                <button type="button" class="btn-secondary" id="scoreboard-prev-bottom">Previous</button>
+                <span class="list-pagination-page" id="scoreboard-page-bottom"></span>
+                <button type="button" class="btn-secondary" id="scoreboard-next-bottom">Next</button>
+            </div>
+        </div>
     </main>
 
     <div id="score-detail" class="score-detail" hidden>
@@ -60,6 +87,6 @@ $home = homePathForRole($user['role'] ?? 'judge');
         </div>
     </div>
 
-    <script src="/js/scoreboard.js?v=2" defer></script>
+    <script src="/js/scoreboard.js?v=3" defer></script>
 </body>
 </html>

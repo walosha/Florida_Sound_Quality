@@ -8,15 +8,51 @@ declare(strict_types=1);
 require_once __DIR__ . '/competitors.php';
 require_once __DIR__ . '/pdf.php';
 require_once __DIR__ . '/email.php';
+require_once __DIR__ . '/pagination.php';
 
 /**
- * All competitors with optional linked score for the admin dashboard.
+ * Admin dashboard summary counts (cheap aggregates).
  *
- * @return list<array<string, mixed>>
+ * @return array{competitors:int,registered:int,scored:int,sent:int,pending_scorecards:int,scores:int,events:int,staff:int}
  */
-function listAdminCompetitors(): array
+function adminDashboardCounts(): array
 {
-    return dbFetchAll(
+    $competitors = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM competitors')['cnt'] ?? 0);
+    $registered = (int) (dbFetchOne(
+        'SELECT COUNT(*) AS cnt FROM competitors WHERE status = \'registered\''
+    )['cnt'] ?? 0);
+    $scored = (int) (dbFetchOne(
+        'SELECT COUNT(*) AS cnt FROM competitors WHERE status = \'scored\''
+    )['cnt'] ?? 0);
+    $sent = (int) (dbFetchOne(
+        'SELECT COUNT(*) AS cnt FROM competitors WHERE scorecard_sent_at IS NOT NULL'
+    )['cnt'] ?? 0);
+    $scores = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM scores')['cnt'] ?? 0);
+    $events = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM events')['cnt'] ?? 0);
+    $staff = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'] ?? 0);
+    $pending = max(0, $scored - $sent);
+
+    return [
+        'competitors'         => $competitors,
+        'registered'          => $registered,
+        'scored'              => $scored,
+        'sent'                => $sent,
+        'pending_scorecards'  => $pending,
+        'scores'              => $scores,
+        'events'              => $events,
+        'staff'               => $staff,
+    ];
+}
+
+/**
+ * Competitors with optional linked score for the admin dashboard (paginated).
+ *
+ * @return array{rows:list<array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int,offset:int,from:int,to:int}
+ */
+function listAdminCompetitors(int $page = 1, int $perPage = PAGINATION_DEFAULT_PER_PAGE): array
+{
+    return dbPaginate(
+        'SELECT COUNT(*) AS cnt FROM competitors c',
         'SELECT c.*,
                 s.id AS score_id,
                 s.grand_total,
@@ -27,24 +63,31 @@ function listAdminCompetitors(): array
                 s.created_at AS scored_at
          FROM competitors c
          LEFT JOIN scores s ON s.competitor_id = c.id
-         ORDER BY c.created_at DESC, c.id DESC'
+         ORDER BY c.created_at DESC, c.id DESC',
+        [],
+        $page,
+        $perPage
     );
 }
 
 /**
- * Submitted scores newest-first (one per competitor by design).
+ * Submitted scores newest-first (paginated).
  *
- * @return list<array<string, mixed>>
+ * @return array{rows:list<array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int,offset:int,from:int,to:int}
  */
-function listSubmittedScores(): array
+function listSubmittedScores(int $page = 1, int $perPage = PAGINATION_DEFAULT_PER_PAGE): array
 {
-    return dbFetchAll(
+    return dbPaginate(
+        'SELECT COUNT(*) AS cnt FROM scores s',
         'SELECT s.*,
                 c.scorecard_sent_at,
                 c.status AS competitor_status
          FROM scores s
          LEFT JOIN competitors c ON c.id = s.competitor_id
-         ORDER BY s.created_at DESC, s.id DESC'
+         ORDER BY s.created_at DESC, s.id DESC',
+        [],
+        $page,
+        $perPage
     );
 }
 
@@ -107,14 +150,20 @@ function sendCompetitorScorecard(int $competitorId): array
 }
 
 /**
- * @return list<array<string, mixed>>
+ * Staff accounts (paginated).
+ *
+ * @return array{rows:list<array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int,offset:int,from:int,to:int}
  */
-function listStaffUsers(): array
+function listStaffUsers(int $page = 1, int $perPage = PAGINATION_DEFAULT_PER_PAGE): array
 {
-    return dbFetchAll(
+    return dbPaginate(
+        'SELECT COUNT(*) AS cnt FROM users',
         'SELECT id, email, name, role, created_at
          FROM users
-         ORDER BY FIELD(role, \'admin\', \'judge\'), name ASC, id ASC'
+         ORDER BY FIELD(role, \'admin\', \'judge\'), name ASC, id ASC',
+        [],
+        $page,
+        $perPage
     );
 }
 

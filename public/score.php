@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../includes/competitors.php';
 require_once __DIR__ . '/../includes/events.php';
+require_once __DIR__ . '/../includes/pagination.php';
 
 requireRole('judge');
 $token = csrfToken();
@@ -22,6 +23,7 @@ $events = listEvents();
 $competitorId = filter_var($_GET['competitor_id'] ?? '', FILTER_VALIDATE_INT);
 $competitor = null;
 $pageMode = 'list';
+$competitors = ['rows' => [], 'total' => 0];
 
 if ($competitorId !== false && $competitorId > 0) {
     $competitor = findCompetitorById($competitorId);
@@ -34,7 +36,8 @@ if ($competitorId !== false && $competitorId > 0) {
         $pageMode = 'form';
     }
 } else {
-    $competitors = listJudgeCompetitors();
+    $pager = paginationParams();
+    $competitors = listJudgeCompetitors($pager['page'], $pager['per_page']);
 }
 
 /**
@@ -101,11 +104,12 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                 Select a registered competitor to score.
             </p>
 
-            <?php if ($competitors === []): ?>
+            <?php if ((int) $competitors['total'] === 0): ?>
                 <p class="empty-note">No registered competitors yet. An admin must send invite links first.</p>
             <?php else: ?>
+                <?php renderPagination($competitors, '/score.php'); ?>
                 <ul class="judge-competitor-list">
-                    <?php foreach ($competitors as $row): ?>
+                    <?php foreach ($competitors['rows'] as $row): ?>
                         <?php
                         $status = (string) $row['status'];
                         $isRegistered = $status === 'registered' && empty($row['score_id']);
@@ -141,6 +145,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                         </li>
                     <?php endforeach; ?>
                 </ul>
+                <?php renderPagination($competitors, '/score.php'); ?>
             <?php endif; ?>
 
         <?php elseif ($pageMode === 'missing'): ?>

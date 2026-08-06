@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/db.php';
+require_once __DIR__ . '/../../includes/pagination.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -140,11 +141,21 @@ if ($event === '') {
 }
 
 if ($event === '') {
-    echo json_encode([]);
+    echo json_encode([
+        'scores'      => [],
+        'total'       => 0,
+        'page'        => 1,
+        'per_page'    => PAGINATION_DEFAULT_PER_PAGE,
+        'total_pages' => 1,
+        'from'        => 0,
+        'to'          => 0,
+    ]);
     exit;
 }
 
-$rows = dbFetchAll(
+$pager = paginationParams();
+$result = dbPaginate(
+    'SELECT COUNT(*) AS cnt FROM scores s WHERE s.event_name = ?',
     'SELECT
         s.id,
         COALESCE(c.name, s.competitor_name) AS competitor_name,
@@ -157,12 +168,14 @@ $rows = dbFetchAll(
      LEFT JOIN competitors c ON c.id = s.competitor_id
      WHERE s.event_name = ?
      ORDER BY s.grand_total DESC, s.id ASC',
-    [$event]
+    [$event],
+    $pager['page'],
+    $pager['per_page']
 );
 
 $out = [];
-$rank = 1;
-foreach ($rows as $row) {
+$rank = (int) $result['offset'] + 1;
+foreach ($result['rows'] as $row) {
     $out[] = [
         'id'              => (int) $row['id'],
         'rank'            => $rank,
@@ -176,4 +189,12 @@ foreach ($rows as $row) {
     $rank++;
 }
 
-echo json_encode($out);
+echo json_encode([
+    'scores'      => $out,
+    'total'       => $result['total'],
+    'page'        => $result['page'],
+    'per_page'    => $result['per_page'],
+    'total_pages' => $result['total_pages'],
+    'from'        => $result['from'],
+    'to'          => $result['to'],
+]);

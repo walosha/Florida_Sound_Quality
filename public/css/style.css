@@ -810,6 +810,65 @@ button[type="submit"]:disabled {
   -webkit-overflow-scrolling: touch;
 }
 
+.list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin: 1rem 0;
+  padding: 0.85rem 1rem;
+  background: var(--bg-elevated);
+}
+
+.list-pagination-per-page {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.list-pagination-per-page label {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.list-pagination-per-page select {
+  min-width: 4.5rem;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 0;
+  outline: none;
+}
+
+.list-pagination-range,
+.list-pagination-page {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.list-pagination-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-left: auto;
+}
+
+.list-pagination .btn-secondary.is-disabled,
+.btn-secondary.is-disabled,
+.btn-secondary:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;
@@ -1038,6 +1097,18 @@ a.admin-stat:focus-visible {
   border: 0;
   border-radius: 0;
   outline: none;
+}
+
+.scoreboard-controls #per-page-filter {
+  min-width: 5rem;
+}
+
+.page-scoreboard .list-pagination {
+  margin-top: 0;
+}
+
+.page-scoreboard .list-pagination + .score-list {
+  margin-top: 0.75rem;
 }
 
 .score-list {

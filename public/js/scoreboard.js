@@ -5,14 +5,21 @@
 (function () {
   'use strict';
 
+  const PER_PAGE_OPTIONS = [10, 25, 50, 100];
   const select = document.getElementById('event-filter');
+  const perPageSelect = document.getElementById('per-page-filter');
   const list = document.getElementById('score-list');
   const empty = document.getElementById('scoreboard-empty');
   const detail = document.getElementById('score-detail');
   const detailBody = document.getElementById('score-detail-body');
   const detailClose = document.getElementById('score-detail-close');
   const detailBackdrop = document.getElementById('score-detail-backdrop');
+  const pagerTop = document.getElementById('scoreboard-pagination');
+  const pagerBottom = document.getElementById('scoreboard-pagination-bottom');
   let currentEvent = '';
+  let currentPage = 1;
+  let perPage = 25;
+  let totalPages = 1;
   let timer = null;
   let openScoreId = null;
   let lastFocus = null;
@@ -59,6 +66,46 @@
       lastFocus.focus();
     }
     lastFocus = null;
+  }
+
+  function setBtnDisabled(btn, disabled) {
+    if (!btn) return;
+    btn.disabled = disabled;
+    btn.classList.toggle('is-disabled', disabled);
+    btn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+  }
+
+  function updatePagination(meta) {
+    const total = meta.total || 0;
+    const page = meta.page || 1;
+    const pages = meta.total_pages || 1;
+    const from = meta.from || 0;
+    const to = meta.to || 0;
+    currentPage = page;
+    totalPages = pages;
+
+    const show = total > 0;
+    [pagerTop, pagerBottom].forEach((el) => {
+      if (!el) return;
+      if (show) el.removeAttribute('hidden');
+      else el.setAttribute('hidden', '');
+    });
+
+    const rangeText = total ? `Showing ${from}–${to} of ${total}` : '';
+    const pageText = `Page ${page} of ${pages}`;
+    const rangeTop = document.getElementById('scoreboard-range');
+    const rangeBottom = document.getElementById('scoreboard-range-bottom');
+    const pageTop = document.getElementById('scoreboard-page');
+    const pageBottom = document.getElementById('scoreboard-page-bottom');
+    if (rangeTop) rangeTop.textContent = rangeText;
+    if (rangeBottom) rangeBottom.textContent = rangeText;
+    if (pageTop) pageTop.textContent = pageText;
+    if (pageBottom) pageBottom.textContent = pageText;
+
+    setBtnDisabled(document.getElementById('scoreboard-prev'), page <= 1);
+    setBtnDisabled(document.getElementById('scoreboard-prev-bottom'), page <= 1);
+    setBtnDisabled(document.getElementById('scoreboard-next'), page >= pages);
+    setBtnDisabled(document.getElementById('scoreboard-next-bottom'), page >= pages);
   }
 
   function render(rows) {
@@ -202,6 +249,7 @@
       select.appendChild(opt);
       currentEvent = '';
       render([]);
+      updatePagination({ total: 0, page: 1, total_pages: 1, from: 0, to: 0 });
       return;
     }
     events.forEach((name) => {
@@ -217,12 +265,41 @@
   async function loadScores() {
     if (!currentEvent) {
       render([]);
+      updatePagination({ total: 0, page: 1, total_pages: 1, from: 0, to: 0 });
       return;
     }
-    const url = '/api/scores.php?event=' + encodeURIComponent(currentEvent);
+    const url =
+      '/api/scores.php?event=' +
+      encodeURIComponent(currentEvent) +
+      '&page=' +
+      encodeURIComponent(String(currentPage)) +
+      '&per_page=' +
+      encodeURIComponent(String(perPage));
     const res = await fetch(url, { credentials: 'same-origin' });
-    const rows = await res.json();
-    render(Array.isArray(rows) ? rows : []);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : data.scores || [];
+    const meta = Array.isArray(data)
+      ? {
+          total: rows.length,
+          page: 1,
+          total_pages: 1,
+          from: rows.length ? 1 : 0,
+          to: rows.length,
+        }
+      : data;
+    if (meta.page && meta.page !== currentPage) {
+      currentPage = meta.page;
+    }
+    render(rows);
+    updatePagination(meta);
+  }
+
+  function goToPage(page) {
+    const next = Math.max(1, Math.min(totalPages, page));
+    if (next === currentPage) return;
+    currentPage = next;
+    loadScores().catch(() => {});
+    startPolling();
   }
 
   function startPolling() {
@@ -245,10 +322,38 @@
   if (select) {
     select.addEventListener('change', () => {
       currentEvent = select.value;
+      currentPage = 1;
       loadScores().catch(() => {});
       startPolling();
     });
   }
+
+  if (perPageSelect) {
+    const initial = parseInt(perPageSelect.value, 10);
+    if (PER_PAGE_OPTIONS.indexOf(initial) !== -1) {
+      perPage = initial;
+    }
+    perPageSelect.addEventListener('change', () => {
+      const next = parseInt(perPageSelect.value, 10);
+      perPage = PER_PAGE_OPTIONS.indexOf(next) !== -1 ? next : 25;
+      currentPage = 1;
+      loadScores().catch(() => {});
+      startPolling();
+    });
+  }
+
+  function bindPager(prevId, nextId) {
+    const prev = document.getElementById(prevId);
+    const next = document.getElementById(nextId);
+    if (prev) {
+      prev.addEventListener('click', () => goToPage(currentPage - 1));
+    }
+    if (next) {
+      next.addEventListener('click', () => goToPage(currentPage + 1));
+    }
+  }
+  bindPager('scoreboard-prev', 'scoreboard-next');
+  bindPager('scoreboard-prev-bottom', 'scoreboard-next-bottom');
 
   if (detailClose) {
     detailClose.addEventListener('click', () => closePanel());

@@ -6,14 +6,33 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/pagination.php';
 
 /**
+ * All events (for dropdowns / small catalogs).
+ *
  * @return list<array<string, mixed>>
  */
 function listEvents(): array
 {
     return dbFetchAll(
         'SELECT * FROM events ORDER BY event_date DESC, name ASC, id DESC'
+    );
+}
+
+/**
+ * Events catalog (paginated) for admin tables.
+ *
+ * @return array{rows:list<array<string,mixed>>,total:int,page:int,per_page:int,total_pages:int,offset:int,from:int,to:int}
+ */
+function listEventsPaginated(int $page = 1, int $perPage = PAGINATION_DEFAULT_PER_PAGE): array
+{
+    return dbPaginate(
+        'SELECT COUNT(*) AS cnt FROM events',
+        'SELECT * FROM events ORDER BY event_date DESC, name ASC, id DESC',
+        [],
+        $page,
+        $perPage
     );
 }
 
