@@ -1047,13 +1047,34 @@ a.admin-stat:focus-visible {
 }
 
 .score-row {
+  margin-bottom: 0.45rem;
+  background: var(--bg-elevated);
+}
+
+.score-row-btn {
   display: grid;
   grid-template-columns: 3.5rem 1fr auto;
   gap: 0.75rem 1rem;
   align-items: center;
+  width: 100%;
   padding: 1.1rem 1rem;
-  margin-bottom: 0.45rem;
-  background: var(--bg-elevated);
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.score-row-btn:hover,
+.score-row-btn:focus-visible {
+  background: rgba(224, 112, 48, 0.08);
+  outline: none;
+}
+
+.score-row-btn:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent-hot);
 }
 
 .score-row .rank {
@@ -1065,16 +1086,19 @@ a.admin-stat:focus-visible {
 }
 
 .score-row .who {
+  display: block;
   min-width: 0;
 }
 
 .score-row .name {
+  display: block;
   font-family: var(--font-display);
   font-size: 1.45rem;
   font-weight: 700;
 }
 
 .score-row .vehicle {
+  display: block;
   color: var(--text-muted);
   font-size: 1.05rem;
 }
@@ -1121,7 +1145,7 @@ a.admin-stat:focus-visible {
 }
 
 @media (max-width: 400px) {
-  .score-row {
+  .score-row-btn {
     grid-template-columns: 2.5rem 1fr;
   }
   .score-row .points {
@@ -1132,6 +1156,111 @@ a.admin-stat:focus-visible {
   .grand-total-bar strong {
     font-size: 2.25rem;
   }
+}
+
+/* —— Scoreboard detail dialog —— */
+.score-detail {
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: min(90vh, 52rem);
+  padding: 0;
+  border: 0;
+  color: var(--text);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.score-detail::backdrop {
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.score-detail-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem 0;
+}
+
+.score-detail-body {
+  max-height: calc(min(90vh, 52rem) - 3.25rem);
+  overflow: auto;
+  padding: 0 1.15rem 1.35rem;
+}
+
+.score-detail-header {
+  margin-bottom: 1.25rem;
+}
+
+.score-detail-header h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.85rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.score-detail-vehicle {
+  margin: 0 0 0.55rem;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.score-detail-meta {
+  margin: 0.15rem 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.score-detail-total {
+  margin: 0.85rem 0 0;
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-hot);
+}
+
+.score-detail-section {
+  margin: 0 0 1.15rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(240, 230, 216, 0.08);
+}
+
+.score-detail-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.score-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.28rem 0;
+  font-size: 1.02rem;
+}
+
+.score-metric strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.score-detail-notes {
+  margin: 0.45rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.score-detail-loading,
+.score-detail-error {
+  margin: 1.5rem 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.score-detail-error {
+  color: var(--danger);
 }
 
 /* —— Judge competitor list —— */

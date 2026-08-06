@@ -33,7 +33,7 @@ $home = homePathForRole($user['role'] ?? 'judge');
 
     <main class="scoreboard-main">
         <h1 class="page-title">Live Scoreboard</h1>
-        <p class="page-lead">Staff only. Standings update every 5 seconds.</p>
+        <p class="page-lead">Staff only. Standings update every 5 seconds. Click a competitor for score details.</p>
 
         <div class="scoreboard-controls">
             <div class="field">
@@ -47,6 +47,15 @@ $home = homePathForRole($user['role'] ?? 'judge');
         <ol id="score-list" class="score-list" aria-live="polite"></ol>
         <p id="scoreboard-empty" class="scoreboard-empty" hidden>No scores yet for this event.</p>
     </main>
+
+    <dialog id="score-detail" class="score-detail" aria-labelledby="score-detail-title">
+        <form method="dialog" class="score-detail-toolbar">
+            <button type="submit" class="btn-secondary" value="close">Close</button>
+        </form>
+        <div id="score-detail-body" class="score-detail-body">
+            <p class="score-detail-loading">Loading…</p>
+        </div>
+    </dialog>
 
     <script src="/js/scoreboard.js" defer></script>
 </body>
