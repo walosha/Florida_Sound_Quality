@@ -1,6 +1,6 @@
 # Florida Sound Quality — Scoring Web App
 
-Mobile-first PHP + MySQL app for car-audio competitions. Admins invite competitors; competitors register via unique links (no accounts); judges log in and score registered competitors; admins send PDF scorecards by email when ready. Staff can view a live scoreboard after login.
+Mobile-first PHP + MySQL app for car-audio competitions. Competitors register via a public open link (no accounts); judges log in and score registered competitors; admins send PDF scorecards by email when ready. Staff can view a live scoreboard after login.
 
 No frontend framework. No PHP framework. Vanilla HTML/CSS/JS + plain PHP.
 
@@ -24,7 +24,7 @@ Hosted on Railway (PHP + MySQL). Document root is `public/`; `includes/` is outs
 Full source on `main`, including:
 
 - `schema.sql` — `users`, `competitors`, `scores`, `sessions`, `rate_limit`
-- `seed.sql` — admin + judge accounts, sample invites/registrations/scores
+- `seed.sql` — admin + judge accounts, sample registrations/scores
 - `migrations/` — incremental SQL for existing databases
 - `.env.example` — placeholder config (never commit `.env`)
 - this README — setup steps and design decisions
@@ -105,7 +105,7 @@ cat migrations/2026-08-05_sync_score_competitor_denorm.sql | railway connect MyS
 cat migrations/2026-08-05_phase5_polish.sql | railway connect MySQL --ssh
 ```
 
-6. Generate a public domain on the web service. Optional: set `APP_BASE_URL` to that public URL for stable invite links.
+6. Generate a public domain on the web service. Optional: set `APP_BASE_URL` to that public URL for a stable registration link.
 
 No frontend build step — only `composer install`.
 
@@ -215,7 +215,7 @@ Live standings at `/scoreboard.php` — **admin or judge login required**. Polls
 - Queue PDF/email for slower SMTP
 - Admin UI to edit placement after the fact
 
-**Phase 1 (done):** Admin generates one invite link per competitor; competitors register at `/competitor.php?token={token}` with name, vehicle, and email (no account).
+**Phase 1 (done):** Open competitor registration at `/competitor.php` with name, vehicle, and email (no account, no per-competitor tokens).
 
 **Phase 2 (done):** Judges see registered competitors, open a prefilled scoring form, save one score per competitor; scorecard email is not sent on submit.
 
@@ -223,7 +223,9 @@ Live standings at `/scoreboard.php` — **admin or judge login required**. Polls
 
 **Phase 4 (done):** Cutover — shared password removed, scoreboard prefers `competitors` join, seed covers multi-role demo data, denorm sync migration, docs/smoke checklist.
 
-**Phase 5 (done):** Admin PDF download + resend, invite expiry/revoke, events catalog, offline score-form drafts (`sessionStorage`).
+**Phase 5 (done):** Admin PDF download + resend, events catalog, offline score-form drafts (`sessionStorage`).
+
+**Phase 6 (done):** Open registration — one shared `/competitor.php` link; per-competitor invite tokens removed.
 
 **Optional enhancement (bonus)**
 
@@ -238,7 +240,7 @@ Events live in an `events` table (admin CRUD). Judges pick an event from the cat
 After deploy / local setup:
 
 1. **Admin login** — `admin@floridasoundquality.local` / `admin123` → `/admin/`
-2. **Generate invite** — copy `/competitor.php?token={token}` link
+2. **Registration link** — copy `/competitor.php` from Admin → Registration
 3. **Competitor register** — open link (incognito), submit name/vehicle/email → status Registered
 4. **Judge login** — `judge@floridasoundquality.local` / `judge123` → competitor list → Score
 5. **Submit score** — save succeeds; no automatic email; competitor moves to Scored
@@ -252,7 +254,7 @@ After deploy / local setup:
 public/           ← web root
   login.php, score.php, submit.php, scoreboard.php, logout.php, competitor.php
   admin/index.php
-  .htaccess        ← optional /competitor/{token} rewrite (Apache only)
+  .htaccess        ← optional /competitor rewrite (Apache only)
   api/scores.php
   css/style.css
   js/score-form.js, scoreboard.js

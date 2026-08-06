@@ -1,6 +1,6 @@
 <?php
 /**
- * Competitor invite + registration helpers.
+ * Competitor registration helpers.
  */
 
 declare(strict_types=1);
@@ -8,7 +8,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/db.php';
 
 /**
- * Absolute base URL for invite links (no trailing slash).
+ * Absolute base URL for public links (no trailing slash).
  */
 function appBaseUrl(): string
 {
@@ -27,114 +27,61 @@ function appBaseUrl(): string
 }
 
 /**
- * Public invite URL for a token.
+ * Public open registration URL (shared by all competitors).
  */
-function competitorInviteUrl(string $token): string
+function competitorRegistrationUrl(): string
 {
-    return appBaseUrl() . '/competitor.php?token=' . rawurlencode($token);
+    return appBaseUrl() . '/competitor.php';
 }
 
 /**
- * Create a new invite row. Returns the competitor row including invite_token.
+ * Create a registered competitor from validated form data.
  *
- * @return array<string, mixed>
+ * @param array<string, mixed> $data Validated registration data
+ * @return array{ok:bool,error:?string,competitor:?array<string,mixed>}
  */
-function createCompetitorInvite(int $adminUserId): array
+function createRegisteredCompetitor(array $data): array
 {
-    $token = bin2hex(random_bytes(32));
-    $expiresAt = null;
-    if (INVITE_EXPIRY_DAYS > 0) {
-        $expiresAt = (new DateTimeImmutable('now'))
-            ->modify('+' . INVITE_EXPIRY_DAYS . ' days')
-            ->format('Y-m-d H:i:s');
+    try {
+        dbQuery(
+            'INSERT INTO competitors (
+                status, name, email,
+                vehicle_year, vehicle_make, vehicle_model, vehicle_color,
+                registered_at
+             ) VALUES (
+                \'registered\', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
+             )',
+            [
+                $data['name'],
+                $data['email'],
+                $data['vehicle_year'],
+                $data['vehicle_make'],
+                $data['vehicle_model'],
+                $data['vehicle_color'],
+            ]
+        );
+    } catch (Throwable $e) {
+        error_log('createRegisteredCompetitor failed: ' . $e->getMessage());
+        return ['ok' => false, 'error' => 'Could not save registration.', 'competitor' => null];
     }
-
-    dbQuery(
-        'INSERT INTO competitors (invite_token, status, created_by_user_id, expires_at)
-         VALUES (?, \'invited\', ?, ?)',
-        [$token, $adminUserId, $expiresAt]
-    );
 
     $id = (int) db()->lastInsertId();
     $row = findCompetitorById($id);
     if ($row === null) {
-        throw new RuntimeException('Failed to load invite after create.');
+        return ['ok' => false, 'error' => 'Could not save registration.', 'competitor' => null];
     }
 
-    return $row;
+    return ['ok' => true, 'error' => null, 'competitor' => $row];
 }
 
 /**
- * Revoke an unused invite so the token can no longer register.
- *
- * @return array{ok:bool,error:?string}
- */
-function revokeCompetitorInvite(int $competitorId): array
-{
-    $row = findCompetitorById($competitorId);
-    if ($row === null) {
-        return ['ok' => false, 'error' => 'Invite not found.'];
-    }
-    if (($row['status'] ?? '') !== 'invited') {
-        return ['ok' => false, 'error' => 'Only unused invites can be revoked.'];
-    }
-    if (!empty($row['revoked_at'])) {
-        return ['ok' => false, 'error' => 'Invite is already revoked.'];
-    }
-
-    dbQuery(
-        'UPDATE competitors SET revoked_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND status = \'invited\' AND revoked_at IS NULL',
-        [$competitorId]
-    );
-
-    return ['ok' => true, 'error' => null];
-}
-
-/**
- * True when the invite token may still be used for registration.
- *
- * @param array<string, mixed> $competitor
- */
-function competitorInviteIsOpen(array $competitor): bool
-{
-    if (($competitor['status'] ?? '') !== 'invited') {
-        return false;
-    }
-    if (!empty($competitor['revoked_at'])) {
-        return false;
-    }
-    $expiresAt = $competitor['expires_at'] ?? null;
-    if ($expiresAt !== null && $expiresAt !== '') {
-        $ts = strtotime((string) $expiresAt);
-        if ($ts !== false && $ts < time()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * Display status for admin/judge UI (includes revoked/expired overlays).
+ * Display status for admin/judge UI.
  *
  * @param array<string, mixed> $competitor
  */
 function competitorEffectiveStatus(array $competitor): string
 {
-    $status = (string) ($competitor['status'] ?? '');
-    if ($status === 'invited') {
-        if (!empty($competitor['revoked_at'])) {
-            return 'revoked';
-        }
-        $expiresAt = $competitor['expires_at'] ?? null;
-        if ($expiresAt !== null && $expiresAt !== '') {
-            $ts = strtotime((string) $expiresAt);
-            if ($ts !== false && $ts < time()) {
-                return 'expired';
-            }
-        }
-    }
-    return $status;
+    return (string) ($competitor['status'] ?? '');
 }
 
 /**
@@ -143,19 +90,6 @@ function competitorEffectiveStatus(array $competitor): string
 function findCompetitorById(int $id): ?array
 {
     return dbFetchOne('SELECT * FROM competitors WHERE id = ?', [$id]);
-}
-
-/**
- * @return array<string, mixed>|null
- */
-function findCompetitorByToken(string $token): ?array
-{
-    $token = strtolower(trim($token));
-    if ($token === '' || !preg_match('/^[a-f0-9]{64}$/', $token)) {
-        return null;
-    }
-
-    return dbFetchOne('SELECT * FROM competitors WHERE invite_token = ?', [$token]);
 }
 
 /**
@@ -294,67 +228,6 @@ function validateCompetitorRegistration(array $input): array
         'ok'     => $errors === [],
         'errors' => $errors,
         'data'   => $data,
-    ];
-}
-
-/**
- * Complete registration for an invited competitor (one-time).
- *
- * @param array<string, mixed> $data Validated registration data
- * @return array{ok:bool,error:?string,competitor:?array<string,mixed>}
- */
-function registerCompetitor(int $competitorId, array $data): array
-{
-    $stmt = dbQuery(
-        'UPDATE competitors
-         SET name = ?,
-             email = ?,
-             vehicle_year = ?,
-             vehicle_make = ?,
-             vehicle_model = ?,
-             vehicle_color = ?,
-             status = \'registered\',
-             registered_at = CURRENT_TIMESTAMP
-         WHERE id = ?
-           AND status = \'invited\'
-           AND revoked_at IS NULL
-           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)',
-        [
-            $data['name'],
-            $data['email'],
-            $data['vehicle_year'],
-            $data['vehicle_make'],
-            $data['vehicle_model'],
-            $data['vehicle_color'],
-            $competitorId,
-        ]
-    );
-
-    if ($stmt->rowCount() === 0) {
-        $existing = findCompetitorById($competitorId);
-        if ($existing === null) {
-            return ['ok' => false, 'error' => 'Invite not found.', 'competitor' => null];
-        }
-        if (!competitorInviteIsOpen($existing)) {
-            $eff = competitorEffectiveStatus($existing);
-            $msg = match ($eff) {
-                'revoked' => 'This invite has been revoked.',
-                'expired' => 'This invite has expired.',
-                default   => 'This invite has already been used.',
-            };
-            return [
-                'ok'         => false,
-                'error'      => $msg,
-                'competitor' => $existing,
-            ];
-        }
-        return ['ok' => false, 'error' => 'Could not save registration.', 'competitor' => null];
-    }
-
-    return [
-        'ok'         => true,
-        'error'      => null,
-        'competitor' => findCompetitorById($competitorId),
     ];
 }
 

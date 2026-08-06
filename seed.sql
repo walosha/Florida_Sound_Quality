@@ -1,5 +1,5 @@
 -- Seed data for Florida Sound Quality (multi-role flows)
--- Safe to re-run: INSERT IGNORE on fixed IDs / emails / tokens / UUIDs
+-- Safe to re-run: INSERT IGNORE on fixed IDs / emails / UUIDs
 --
 -- Default staff passwords (change in production):
 --   admin@floridasoundquality.local  /  admin123
@@ -25,66 +25,53 @@ INSERT IGNORE INTO events (id, name, event_date) VALUES
 (1, 'Tampa Bay Showdown', '2026-03-15'),
 (2, 'Orlando Spring Meet', '2026-04-02');
 
--- Sample competitors: invited, registered (ready to score), and scored
+-- Sample competitors: registered (ready to score) and scored
 INSERT IGNORE INTO competitors (
-    id, invite_token, status, name, email,
+    id, status, name, email,
     vehicle_year, vehicle_make, vehicle_model, vehicle_color,
-    created_by_user_id, registered_at, scorecard_sent_at, expires_at, revoked_at
+    created_by_user_id, registered_at, scorecard_sent_at
 ) VALUES
 (
-    1,
-    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    'invited',
-    NULL, NULL, NULL, NULL, NULL, NULL,
-    1, NULL, NULL, '2026-12-31 23:59:59', NULL
-),
-(
     2,
-    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     'registered',
     'Casey Morgan', 'casey.morgan@example.com',
     2021, 'Subaru', 'BRZ', 'Blue',
-    1, '2026-03-10 12:00:00', NULL, NULL, NULL
+    NULL, '2026-03-10 12:00:00', NULL
 ),
 (
     3,
-    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
     'scored',
     'Jane Doe', 'jane.doe@example.com',
     2022, 'Honda', 'Civic', 'Black',
-    1, '2026-03-10 12:05:00', NULL, NULL, NULL
+    NULL, '2026-03-10 12:05:00', NULL
 ),
 (
     4,
-    'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
     'scored',
     'Marcus Chen', 'marcus.chen@example.com',
     2019, 'Ford', 'Mustang', 'Red',
-    1, '2026-03-10 12:10:00', NULL, NULL, NULL
+    NULL, '2026-03-10 12:10:00', NULL
 ),
 (
     5,
-    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
     'scored',
     'Priya Patel', 'priya.patel@example.com',
     2021, 'Toyota', 'GR86', 'White',
-    1, '2026-03-10 12:15:00', NULL, NULL, NULL
+    NULL, '2026-03-10 12:15:00', NULL
 ),
 (
     6,
-    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
     'scored',
     'Taylor Brooks', 'taylor.brooks@example.com',
     2023, 'Tesla', 'Model 3', 'Gray',
-    1, '2026-04-01 09:00:00', '2026-04-02 18:00:00', NULL, NULL
+    NULL, '2026-04-01 09:00:00', '2026-04-02 18:00:00'
 ),
 (
     7,
-    '1111111111111111111111111111111111111111111111111111111111111111',
     'scored',
     'Riley Gomez', 'riley.gomez@example.com',
     2020, 'Chevrolet', 'Camaro', 'Yellow',
-    1, '2026-04-01 09:05:00', NULL, NULL, NULL
+    NULL, '2026-04-01 09:05:00', NULL
 );
 
 INSERT IGNORE INTO scores (

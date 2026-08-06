@@ -1,8 +1,8 @@
 <?php
 /**
- * Public competitor registration via invite token.
- * Canonical URL: /competitor.php?token={64-hex-token}. /competitor/{token} also
- * resolves here where URL rewriting is available (Apache, local dev router).
+ * Public open competitor registration (no invite token).
+ * Canonical URL: /competitor.php. /competitor also resolves here where
+ * URL rewriting is available (Apache, local dev router).
  */
 
 declare(strict_types=1);
@@ -11,9 +11,6 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/competitors.php';
 
 startAppSession();
-
-$token = (string) ($_GET['token'] ?? '');
-$competitor = findCompetitorByToken($token);
 
 $errors = [];
 $values = [
@@ -25,48 +22,28 @@ $values = [
     'vehicle_color' => '',
 ];
 $formError = '';
+$pageState = 'form';
+$competitor = null;
 
-if ($competitor === null) {
-    http_response_code(404);
-    $pageState = 'invalid';
-} elseif (($competitor['status'] ?? '') !== 'invited') {
-    $pageState = 'used';
-} elseif (!competitorInviteIsOpen($competitor)) {
-    $pageState = competitorEffectiveStatus($competitor);
-    if ($pageState === 'invited') {
-        $pageState = 'invalid';
-    }
-} else {
-    $pageState = 'form';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
+        $formError = 'Invalid request. Please try again.';
+    } else {
+        foreach (array_keys($values) as $key) {
+            $values[$key] = trim((string) ($_POST[$key] ?? ''));
+        }
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
-            $formError = 'Invalid request. Please try again.';
+        $result = validateCompetitorRegistration($_POST);
+        if (!$result['ok']) {
+            $errors = $result['errors'];
         } else {
-            foreach (array_keys($values) as $key) {
-                $values[$key] = trim((string) ($_POST[$key] ?? ''));
-            }
-
-            $result = validateCompetitorRegistration($_POST);
-            if (!$result['ok']) {
-                $errors = $result['errors'];
+            $saved = createRegisteredCompetitor($result['data']);
+            if ($saved['ok']) {
+                $pageState = 'success';
+                $competitor = $saved['competitor'];
+                unset($_SESSION['csrf_token']);
             } else {
-                $saved = registerCompetitor((int) $competitor['id'], $result['data']);
-                if ($saved['ok']) {
-                    $pageState = 'success';
-                    $competitor = $saved['competitor'] ?? $competitor;
-                    unset($_SESSION['csrf_token']);
-                } else {
-                    $formError = $saved['error'] ?? 'Could not save registration.';
-                    $savedRow = $saved['competitor'] ?? $competitor;
-                    if ($savedRow !== null && !competitorInviteIsOpen($savedRow)) {
-                        $pageState = competitorEffectiveStatus($savedRow);
-                        if (($savedRow['status'] ?? '') !== 'invited') {
-                            $pageState = 'used';
-                        }
-                        $competitor = $savedRow;
-                    }
-                }
+                $formError = $saved['error'] ?? 'Could not save registration.';
             }
         }
     }
@@ -95,31 +72,7 @@ function fieldClass(array $errors, string $key): string
         <p class="eyebrow">Florida Sound Quality</p>
         <h1>Competitor registration</h1>
 
-        <?php if ($pageState === 'invalid'): ?>
-            <p class="lead">This invite link is invalid or incomplete.</p>
-            <p>Ask the event organizer for a new registration link.</p>
-
-        <?php elseif ($pageState === 'revoked'): ?>
-            <p class="lead">This invite has been revoked.</p>
-            <p>Ask the event organizer for a new registration link.</p>
-
-        <?php elseif ($pageState === 'expired'): ?>
-            <p class="lead">This invite has expired.</p>
-            <p>Ask the event organizer for a new registration link.</p>
-
-        <?php elseif ($pageState === 'used'): ?>
-            <p class="lead">This invite has already been used.</p>
-            <?php if (!empty($competitor['name'])): ?>
-                <p>
-                    Registered as
-                    <strong><?= htmlspecialchars((string) $competitor['name'], ENT_QUOTES, 'UTF-8') ?></strong>.
-                    Judges will score you at the event — no account needed.
-                </p>
-            <?php else: ?>
-                <p>Judges will score you at the event — no account needed.</p>
-            <?php endif; ?>
-
-        <?php elseif ($pageState === 'success'): ?>
+        <?php if ($pageState === 'success' && $competitor !== null): ?>
             <p class="lead flash flash-ok" role="status">You're registered.</p>
             <p>
                 Thanks, <?= htmlspecialchars((string) ($competitor['name'] ?? ''), ENT_QUOTES, 'UTF-8') ?>.

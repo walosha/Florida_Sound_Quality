@@ -19,7 +19,7 @@ if ($user === null) {
 
 $sections = [
     'overview'     => 'Overview',
-    'invites'      => 'Invites',
+    'invites'      => 'Registration',
     'competitors'  => 'Competitors',
     'scores'       => 'Submitted scores',
     'events'       => 'Events',
@@ -35,18 +35,14 @@ $judgeForm = ['name' => '', 'email' => ''];
 $judgeErrors = [];
 $eventForm = ['name' => '', 'event_date' => ''];
 $eventErrors = [];
-$createdInviteUrl = null;
 
 /**
  * PRG redirect back into a section with a flash message.
  */
-function adminRedirect(string $section, string $flash = '', string $flashError = '', ?string $inviteUrl = null): void
+function adminRedirect(string $section, string $flash = '', string $flashError = ''): void
 {
     $_SESSION['admin_flash'] = $flash;
     $_SESSION['admin_flash_error'] = $flashError;
-    if ($inviteUrl !== null) {
-        $_SESSION['admin_invite_url'] = $inviteUrl;
-    }
     header('Location: /admin/?section=' . rawurlencode($section));
     exit;
 }
@@ -60,34 +56,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postSection = (string) ($_POST['section'] ?? $section);
     if (!isset($sections[$postSection])) {
         $postSection = 'overview';
-    }
-
-    if ($action === 'create_invite') {
-        try {
-            $invite = createCompetitorInvite($user['id']);
-            $url = competitorInviteUrl((string) $invite['invite_token']);
-            $msg = 'Invite created'
-                . (!empty($invite['expires_at']) ? ' (expires ' . $invite['expires_at'] . ')' : '')
-                . '. Copy the link below.';
-            unset($_SESSION['csrf_token']);
-            adminRedirect('invites', $msg, '', $url);
-        } catch (Throwable $e) {
-            error_log('createCompetitorInvite failed: ' . $e->getMessage());
-            adminRedirect('invites', '', 'Could not create invite. Try again.');
-        }
-    }
-
-    if ($action === 'revoke_invite') {
-        $competitorId = filter_var($_POST['competitor_id'] ?? null, FILTER_VALIDATE_INT);
-        if ($competitorId === false || $competitorId <= 0) {
-            adminRedirect('competitors', '', 'Invalid invite.');
-        }
-        $revoked = revokeCompetitorInvite($competitorId);
-        unset($_SESSION['csrf_token']);
-        if ($revoked['ok']) {
-            adminRedirect('competitors', 'Invite revoked.');
-        }
-        adminRedirect('competitors', '', $revoked['error'] ?? 'Could not revoke invite.');
     }
 
     if ($action === 'send_scorecard') {
@@ -154,26 +122,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $flash = (string) ($_SESSION['admin_flash'] ?? '');
 $flashError = (string) ($_SESSION['admin_flash_error'] ?? '');
-$createdInviteUrl = isset($_SESSION['admin_invite_url'])
-    ? (string) $_SESSION['admin_invite_url']
-    : null;
-unset($_SESSION['admin_flash'], $_SESSION['admin_flash_error'], $_SESSION['admin_invite_url']);
+unset($_SESSION['admin_flash'], $_SESSION['admin_flash_error']);
 
 $token = csrfToken();
 $competitors = listAdminCompetitors();
 $scores = listSubmittedScores();
 $staff = listStaffUsers();
 $events = listEvents();
+$registrationUrl = competitorRegistrationUrl();
 
 $scoredCount = 0;
 $sentCount = 0;
-$invitedCount = 0;
 $registeredCount = 0;
 foreach ($competitors as $row) {
     $eff = competitorEffectiveStatus($row);
-    if ($eff === 'invited') {
-        $invitedCount++;
-    } elseif ($eff === 'registered') {
+    if ($eff === 'registered') {
         $registeredCount++;
     }
     if (!empty($row['score_id'])) {
@@ -286,7 +249,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                     <section class="admin-section">
                         <h2>Quick actions</h2>
                         <div class="admin-quick-actions">
-                            <a class="btn-secondary" href="/admin/?section=invites">Generate invite</a>
+                            <a class="btn-secondary" href="/admin/?section=invites">Registration link</a>
                             <a class="btn-secondary" href="/admin/?section=events">Manage events</a>
                             <a class="btn-secondary" href="/admin/?section=scores">Send scorecards</a>
                             <a class="btn-secondary" href="/admin/?section=judges">Add judge</a>
@@ -301,14 +264,14 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                 <a href="/admin/?section=competitors">View all</a>
                             </div>
                             <?php if ($recentCompetitors === []): ?>
-                                <p class="empty-note">No competitors yet. <a href="/admin/?section=invites">Create an invite</a>.</p>
+                                <p class="empty-note">No competitors yet. Share the <a href="/admin/?section=invites">registration link</a>.</p>
                             <?php else: ?>
                                 <ul class="admin-mini-list">
                                     <?php foreach ($recentCompetitors as $row): ?>
                                         <?php $eff = competitorEffectiveStatus($row); ?>
                                         <li>
                                             <div>
-                                                <strong><?= htmlspecialchars(trim((string) ($row['name'] ?? '')) !== '' ? (string) $row['name'] : 'Pending registration', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                <strong><?= htmlspecialchars(trim((string) ($row['name'] ?? '')) !== '' ? (string) $row['name'] : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
                                                 <div class="cell-sub"><?= htmlspecialchars(competitorVehicleLabel($row), ENT_QUOTES, 'UTF-8') ?></div>
                                             </div>
                                             <span class="status-pill status-<?= htmlspecialchars($eff, ENT_QUOTES, 'UTF-8') ?>">
@@ -346,32 +309,21 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                 <?php elseif ($section === 'invites'): ?>
                     <section class="admin-section">
                         <p class="page-lead">
-                            Generate one unique link per competitor.
-                            <?php if (INVITE_EXPIRY_DAYS > 0): ?>
-                                Links expire after <?= (int) INVITE_EXPIRY_DAYS ?> days unless revoked earlier.
-                            <?php else: ?>
-                                Links do not auto-expire (you can still revoke unused ones).
-                            <?php endif; ?>
+                            One public registration link for all competitors.
+                            Anyone with the link can register; no unique tokens or accounts.
                         </p>
-                        <form method="post" action="/admin/?section=invites" class="invite-form">
-                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                            <input type="hidden" name="section" value="invites">
-                            <input type="hidden" name="action" value="create_invite">
-                            <button type="submit" class="btn-primary">Generate invite link</button>
-                        </form>
-                        <?php if ($createdInviteUrl !== null): ?>
-                            <div class="invite-result">
-                                <label for="new-invite-url">New invite link</label>
-                                <div class="invite-copy-row">
-                                    <input type="text" id="new-invite-url" class="invite-url" readonly
-                                           value="<?= htmlspecialchars($createdInviteUrl, ENT_QUOTES, 'UTF-8') ?>">
-                                    <button type="button" class="btn-secondary" data-copy-target="new-invite-url">Copy</button>
-                                </div>
+                        <div class="invite-result">
+                            <label for="registration-url">Registration link</label>
+                            <div class="invite-copy-row">
+                                <input type="text" id="registration-url" class="invite-url" readonly
+                                       value="<?= htmlspecialchars($registrationUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="button" class="btn-secondary" data-copy-target="registration-url">Copy</button>
                             </div>
-                        <?php endif; ?>
+                        </div>
                         <p class="empty-note" style="margin-top:1.25rem;">
-                            Open invites also appear under <a href="/admin/?section=competitors">Competitors</a>
-                            (<?= $invitedCount ?> open).
+                            Registered competitors appear under
+                            <a href="/admin/?section=competitors">Competitors</a>
+                            (<?= $registeredCount ?> awaiting score).
                         </p>
                     </section>
 
@@ -379,7 +331,7 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                     <section class="admin-section">
                         <p class="page-lead">Name, vehicle, status. Download or email a PDF scorecard when a score is ready.</p>
                         <?php if ($competitors === []): ?>
-                            <p class="empty-note">No invites yet. <a href="/admin/?section=invites">Generate a link</a>.</p>
+                            <p class="empty-note">No competitors yet. Share the <a href="/admin/?section=invites">registration link</a>.</p>
                         <?php else: ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
@@ -390,33 +342,26 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                             <th scope="col">Email</th>
                                             <th scope="col">Score</th>
                                             <th scope="col">Scorecard</th>
-                                            <th scope="col">Invite</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php foreach ($competitors as $row): ?>
                                             <?php
                                             $status = competitorEffectiveStatus($row);
-                                            $inviteUrl = competitorInviteUrl((string) $row['invite_token']);
-                                            $inputId = 'invite-' . (int) $row['id'];
                                             $vehicle = competitorVehicleLabel($row);
                                             $name = trim((string) ($row['name'] ?? ''));
                                             $email = trim((string) ($row['email'] ?? ''));
                                             $hasScore = !empty($row['score_id']);
                                             $sentAt = $row['scorecard_sent_at'] ?? null;
-                                            $inviteOpen = competitorInviteIsOpen($row);
                                             ?>
                                             <tr>
                                                 <td>
                                                     <span class="status-pill status-<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
                                                         <?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?>
                                                     </span>
-                                                    <?php if ($status === 'invited' && !empty($row['expires_at'])): ?>
-                                                        <div class="cell-sub">Expires <?= htmlspecialchars((string) $row['expires_at'], ENT_QUOTES, 'UTF-8') ?></div>
-                                                    <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <strong><?= htmlspecialchars($name !== '' ? $name : 'Pending registration', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <strong><?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
                                                     <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
                                                 </td>
                                                 <td><?= htmlspecialchars($email !== '' ? $email : '—', ENT_QUOTES, 'UTF-8') ?></td>
@@ -447,26 +392,6 @@ $recentCompetitors = array_slice($competitors, 0, 5);
                                                         <?php endif; ?>
                                                     <?php else: ?>
                                                         <span class="cell-muted">No score yet</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <?php if ($inviteOpen): ?>
-                                                        <div class="invite-copy-row invite-copy-row--compact">
-                                                            <input type="text" id="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>" class="invite-url" readonly
-                                                                   value="<?= htmlspecialchars($inviteUrl, ENT_QUOTES, 'UTF-8') ?>">
-                                                            <button type="button" class="btn-secondary" data-copy-target="<?= htmlspecialchars($inputId, ENT_QUOTES, 'UTF-8') ?>">Copy</button>
-                                                        </div>
-                                                        <form method="post" action="/admin/?section=competitors" class="inline-form" style="margin-top:0.4rem;" onsubmit="return confirm('Revoke this invite link?');">
-                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
-                                                            <input type="hidden" name="section" value="competitors">
-                                                            <input type="hidden" name="action" value="revoke_invite">
-                                                            <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
-                                                            <button type="submit" class="btn-secondary">Revoke</button>
-                                                        </form>
-                                                    <?php elseif ($status === 'revoked' || $status === 'expired'): ?>
-                                                        <span class="cell-muted"><?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?></span>
-                                                    <?php else: ?>
-                                                        <span class="cell-muted">Used</span>
                                                     <?php endif; ?>
                                                 </td>
                                             </tr>

@@ -2,7 +2,7 @@
 
 Architecture and implementation plan for the original MVP (shared judge password, auto-email on submit).
 
-**Superseded for product auth/flows:** the app now uses role-based `users` (`admin` / `judge`), competitor invite registration, judge scoring against registered competitors, and **manual** admin scorecard email. Prefer `README.md` + `schema.sql` for current behavior. This document remains useful for scoring field ranges, Railway session notes, and Dompdf/email plumbing history.
+**Superseded for product auth/flows:** the app now uses role-based `users` (`admin` / `judge`), open competitor registration at `/competitor.php`, judge scoring against registered competitors, and **manual** admin scorecard email. Prefer `README.md` + `schema.sql` for current behavior. This document remains useful for scoring field ranges, Railway session notes, and Dompdf/email plumbing history.
 
 ---
 

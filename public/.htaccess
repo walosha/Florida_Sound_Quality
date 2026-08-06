@@ -1,7 +1,7 @@
-# Pretty URLs for competitor invite links (Apache / Railway heroku-php-apache2)
+# Pretty URLs for competitor registration (Apache / Railway heroku-php-apache2)
 RewriteEngine On
 
-# /competitor/{64-hex} → competitor.php?token=...
+# /competitor → competitor.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^competitor/([a-fA-F0-9]{64})/?$ competitor.php?token=$1 [L,QSA]
+RewriteRule ^competitor/?$ competitor.php [L,QSA]

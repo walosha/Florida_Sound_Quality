@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS competitors (
     id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    invite_token       CHAR(64)         NOT NULL,
-    status             ENUM('invited', 'registered', 'scored') NOT NULL DEFAULT 'invited',
+    -- 'invited' retained for legacy rows; new registrations use 'registered'
+    status             ENUM('invited', 'registered', 'scored') NOT NULL DEFAULT 'registered',
     name               VARCHAR(255)     NULL,
     email              VARCHAR(255)     NULL,
     vehicle_year       SMALLINT UNSIGNED NULL,
@@ -27,11 +27,8 @@ CREATE TABLE IF NOT EXISTS competitors (
     created_by_user_id INT UNSIGNED     NULL,
     registered_at      TIMESTAMP        NULL,
     scorecard_sent_at  TIMESTAMP        NULL,
-    expires_at         TIMESTAMP        NULL,
-    revoked_at         TIMESTAMP        NULL,
     created_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    UNIQUE KEY uq_invite_token (invite_token),
     INDEX idx_competitors_status (status),
     INDEX idx_competitors_email (email),
     CONSTRAINT fk_competitors_created_by

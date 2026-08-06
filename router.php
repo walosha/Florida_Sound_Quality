@@ -9,9 +9,8 @@ declare(strict_types=1);
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $public = __DIR__ . '/public';
 
-// Pretty competitor invite: /competitor/{64-hex}
-if (preg_match('#^/competitor/([a-fA-F0-9]{64})/?$#', $uri, $m)) {
-    $_GET['token'] = strtolower($m[1]);
+// Pretty competitor registration: /competitor
+if (preg_match('#^/competitor/?$#', $uri)) {
     require $public . '/competitor.php';
     return true;
 }
