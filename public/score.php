@@ -107,7 +107,6 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
             <?php if ((int) $competitors['total'] === 0): ?>
                 <p class="empty-note">No registered competitors yet. An admin must send invite links first.</p>
             <?php else: ?>
-                <?php renderPagination($competitors, '/score.php'); ?>
                 <ul class="judge-competitor-list">
                     <?php foreach ($competitors['rows'] as $row): ?>
                         <?php

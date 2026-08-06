@@ -1099,15 +1099,7 @@ a.admin-stat:focus-visible {
   outline: none;
 }
 
-.scoreboard-controls #per-page-filter {
-  min-width: 5rem;
-}
-
 .page-scoreboard .list-pagination {
-  margin-top: 0;
-}
-
-.page-scoreboard .list-pagination + .score-list {
   margin-top: 0.75rem;
 }
 

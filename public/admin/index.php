@@ -334,7 +334,6 @@ $pageTitle = $sections[$section] . ' — Admin';
                         <?php if ((int) $competitors['total'] === 0): ?>
                             <p class="empty-note">No competitors yet. Share the <a href="/admin/?section=invites">registration link</a>.</p>
                         <?php else: ?>
-                            <?php renderPagination($competitors, '/admin/', ['section' => 'competitors']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
@@ -411,7 +410,6 @@ $pageTitle = $sections[$section] . ' — Admin';
                         <?php if ((int) $scores['total'] === 0): ?>
                             <p class="empty-note">No scores submitted yet.</p>
                         <?php else: ?>
-                            <?php renderPagination($scores, '/admin/', ['section' => 'scores']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
@@ -510,7 +508,6 @@ $pageTitle = $sections[$section] . ' — Admin';
                         <?php if ((int) $events['total'] === 0): ?>
                             <p class="empty-note">No events yet. Judges can still type event details until you add some.</p>
                         <?php else: ?>
-                            <?php renderPagination($events, '/admin/', ['section' => 'events']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>
@@ -584,7 +581,6 @@ $pageTitle = $sections[$section] . ' — Admin';
                             <button type="submit" class="btn-primary judge-submit">Create judge</button>
                         </form>
                         <?php if ((int) $staff['total'] > 0): ?>
-                            <?php renderPagination($staff, '/admin/', ['section' => 'judges']); ?>
                             <div class="table-wrap">
                                 <table class="admin-table">
                                     <thead>

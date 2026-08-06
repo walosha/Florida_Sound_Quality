@@ -14,8 +14,7 @@
   const detailBody = document.getElementById('score-detail-body');
   const detailClose = document.getElementById('score-detail-close');
   const detailBackdrop = document.getElementById('score-detail-backdrop');
-  const pagerTop = document.getElementById('scoreboard-pagination');
-  const pagerBottom = document.getElementById('scoreboard-pagination-bottom');
+  const pager = document.getElementById('scoreboard-pagination');
   let currentEvent = '';
   let currentPage = 1;
   let perPage = 25;
@@ -84,28 +83,20 @@
     currentPage = page;
     totalPages = pages;
 
-    const show = total > 0;
-    [pagerTop, pagerBottom].forEach((el) => {
-      if (!el) return;
-      if (show) el.removeAttribute('hidden');
-      else el.setAttribute('hidden', '');
-    });
+    if (pager) {
+      if (total > 0) pager.removeAttribute('hidden');
+      else pager.setAttribute('hidden', '');
+    }
 
     const rangeText = total ? `Showing ${from}–${to} of ${total}` : '';
     const pageText = `Page ${page} of ${pages}`;
-    const rangeTop = document.getElementById('scoreboard-range');
-    const rangeBottom = document.getElementById('scoreboard-range-bottom');
-    const pageTop = document.getElementById('scoreboard-page');
-    const pageBottom = document.getElementById('scoreboard-page-bottom');
-    if (rangeTop) rangeTop.textContent = rangeText;
-    if (rangeBottom) rangeBottom.textContent = rangeText;
-    if (pageTop) pageTop.textContent = pageText;
-    if (pageBottom) pageBottom.textContent = pageText;
+    const rangeEl = document.getElementById('scoreboard-range');
+    const pageEl = document.getElementById('scoreboard-page');
+    if (rangeEl) rangeEl.textContent = rangeText;
+    if (pageEl) pageEl.textContent = pageText;
 
     setBtnDisabled(document.getElementById('scoreboard-prev'), page <= 1);
-    setBtnDisabled(document.getElementById('scoreboard-prev-bottom'), page <= 1);
     setBtnDisabled(document.getElementById('scoreboard-next'), page >= pages);
-    setBtnDisabled(document.getElementById('scoreboard-next-bottom'), page >= pages);
   }
 
   function render(rows) {
@@ -342,18 +333,14 @@
     });
   }
 
-  function bindPager(prevId, nextId) {
-    const prev = document.getElementById(prevId);
-    const next = document.getElementById(nextId);
-    if (prev) {
-      prev.addEventListener('click', () => goToPage(currentPage - 1));
-    }
-    if (next) {
-      next.addEventListener('click', () => goToPage(currentPage + 1));
-    }
+  const prevBtn = document.getElementById('scoreboard-prev');
+  const nextBtn = document.getElementById('scoreboard-next');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', () => goToPage(currentPage - 1));
   }
-  bindPager('scoreboard-prev', 'scoreboard-next');
-  bindPager('scoreboard-prev-bottom', 'scoreboard-next-bottom');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', () => goToPage(currentPage + 1));
+  }
 
   if (detailClose) {
     detailClose.addEventListener('click', () => closePanel());
