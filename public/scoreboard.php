@@ -20,7 +20,7 @@ $home = homePathForRole($user['role'] ?? 'judge');
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=2">
 </head>
 <body class="page-scoreboard">
     <header class="app-header">
@@ -48,15 +48,18 @@ $home = homePathForRole($user['role'] ?? 'judge');
         <p id="scoreboard-empty" class="scoreboard-empty" hidden>No scores yet for this event.</p>
     </main>
 
-    <dialog id="score-detail" class="score-detail" aria-labelledby="score-detail-title">
-        <form method="dialog" class="score-detail-toolbar">
-            <button type="submit" class="btn-secondary" value="close">Close</button>
-        </form>
-        <div id="score-detail-body" class="score-detail-body">
-            <p class="score-detail-loading">Loading…</p>
+    <div id="score-detail" class="score-detail" hidden>
+        <button type="button" class="score-detail-backdrop" id="score-detail-backdrop" aria-label="Close details"></button>
+        <div class="score-detail-panel" role="dialog" aria-modal="true" aria-labelledby="score-detail-title">
+            <div class="score-detail-toolbar">
+                <button type="button" class="btn-secondary" id="score-detail-close">Close</button>
+            </div>
+            <div id="score-detail-body" class="score-detail-body">
+                <p class="score-detail-loading">Loading…</p>
+            </div>
         </div>
-    </dialog>
+    </div>
 
-    <script src="/js/scoreboard.js" defer></script>
+    <script src="/js/scoreboard.js?v=2" defer></script>
 </body>
 </html>

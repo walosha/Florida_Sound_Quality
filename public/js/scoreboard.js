@@ -8,11 +8,14 @@
   const select = document.getElementById('event-filter');
   const list = document.getElementById('score-list');
   const empty = document.getElementById('scoreboard-empty');
-  const dialog = document.getElementById('score-detail');
+  const detail = document.getElementById('score-detail');
   const detailBody = document.getElementById('score-detail-body');
+  const detailClose = document.getElementById('score-detail-close');
+  const detailBackdrop = document.getElementById('score-detail-backdrop');
   let currentEvent = '';
   let timer = null;
   let openScoreId = null;
+  let lastFocus = null;
 
   function vehicleLabel(row) {
     const parts = [row.vehicle_year, row.vehicle_make, row.vehicle_model].filter(Boolean);
@@ -30,21 +33,53 @@
       .replace(/"/g, '&quot;');
   }
 
+  function isDetailOpen() {
+    return detail && !detail.hasAttribute('hidden');
+  }
+
+  function openPanel() {
+    if (!detail) return;
+    lastFocus = document.activeElement;
+    detail.removeAttribute('hidden');
+    document.body.classList.add('score-detail-open');
+    if (detailClose) {
+      detailClose.focus();
+    }
+  }
+
+  function closePanel() {
+    if (!detail) return;
+    detail.setAttribute('hidden', '');
+    document.body.classList.remove('score-detail-open');
+    openScoreId = null;
+    if (detailBody) {
+      detailBody.innerHTML = '';
+    }
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+      lastFocus.focus();
+    }
+    lastFocus = null;
+  }
+
   function render(rows) {
+    if (!list) return;
     list.innerHTML = '';
     if (!rows.length) {
-      empty.hidden = false;
+      if (empty) empty.hidden = false;
       return;
     }
-    empty.hidden = true;
+    if (empty) empty.hidden = true;
     rows.forEach((row) => {
+      const scoreId = row.id;
       const li = document.createElement('li');
       li.className = 'score-row' + (row.rank <= 3 ? ` rank-${row.rank}` : '');
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'score-row-btn';
       btn.setAttribute('aria-haspopup', 'dialog');
-      btn.dataset.scoreId = String(row.id);
+      if (scoreId != null) {
+        btn.dataset.scoreId = String(scoreId);
+      }
       btn.innerHTML = `
         <span class="rank">${row.rank}</span>
         <span class="who">
@@ -53,14 +88,6 @@
         </span>
         <span class="points">${row.total_score}<span class="total-max"> / 230</span></span>
       `;
-      btn.addEventListener('click', () => {
-        openDetail(row.id).catch(() => {
-          detailBody.innerHTML = '<p class="score-detail-error">Could not load details.</p>';
-          if (dialog && typeof dialog.showModal === 'function' && !dialog.open) {
-            dialog.showModal();
-          }
-        });
-      });
       li.appendChild(btn);
       list.appendChild(li);
     });
@@ -76,6 +103,7 @@
   }
 
   function renderDetail(d) {
+    if (!detailBody) return;
     const placement = d.placement
       ? `<p class="score-detail-meta">Placement: ${escapeHtml(d.placement)}</p>`
       : '';
@@ -131,22 +159,35 @@
   }
 
   async function openDetail(scoreId) {
-    openScoreId = scoreId;
-    detailBody.innerHTML = '<p class="score-detail-loading">Loading…</p>';
-    if (dialog && typeof dialog.showModal === 'function' && !dialog.open) {
-      dialog.showModal();
-    }
-    const res = await fetch('/api/scores.php?action=detail&id=' + encodeURIComponent(scoreId), {
-      credentials: 'same-origin',
-    });
-    if (!res.ok) {
-      throw new Error('detail failed');
-    }
-    const data = await res.json();
-    if (openScoreId !== scoreId) {
+    if (!detailBody) return;
+    if (scoreId == null || scoreId === '' || scoreId === 'undefined') {
+      detailBody.innerHTML = '<p class="score-detail-error">Missing score id.</p>';
+      openPanel();
       return;
     }
-    renderDetail(data);
+
+    openScoreId = String(scoreId);
+    detailBody.innerHTML = '<p class="score-detail-loading">Loading…</p>';
+    openPanel();
+
+    try {
+      const res = await fetch('/api/scores.php?action=detail&id=' + encodeURIComponent(scoreId), {
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        throw new Error('detail failed');
+      }
+      const data = await res.json();
+      if (openScoreId !== String(scoreId)) {
+        return;
+      }
+      renderDetail(data);
+    } catch (err) {
+      if (openScoreId !== String(scoreId)) {
+        return;
+      }
+      detailBody.innerHTML = '<p class="score-detail-error">Could not load details.</p>';
+    }
   }
 
   async function loadEvents() {
@@ -187,28 +228,47 @@
   function startPolling() {
     if (timer) clearInterval(timer);
     timer = setInterval(() => {
+      if (isDetailOpen()) return;
       loadScores().catch(() => {});
     }, 5000);
   }
 
-  select.addEventListener('change', () => {
-    currentEvent = select.value;
-    loadScores().catch(() => {});
-    startPolling();
-  });
-
-  if (dialog) {
-    dialog.addEventListener('close', () => {
-      openScoreId = null;
-      detailBody.innerHTML = '';
+  if (list) {
+    list.addEventListener('click', (event) => {
+      const btn = event.target.closest('.score-row-btn');
+      if (!btn || !list.contains(btn)) return;
+      event.preventDefault();
+      openDetail(btn.dataset.scoreId);
     });
   }
+
+  if (select) {
+    select.addEventListener('change', () => {
+      currentEvent = select.value;
+      loadScores().catch(() => {});
+      startPolling();
+    });
+  }
+
+  if (detailClose) {
+    detailClose.addEventListener('click', () => closePanel());
+  }
+  if (detailBackdrop) {
+    detailBackdrop.addEventListener('click', () => closePanel());
+  }
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isDetailOpen()) {
+      closePanel();
+    }
+  });
 
   loadEvents()
     .then(loadScores)
     .then(startPolling)
     .catch(() => {
-      empty.hidden = false;
-      empty.textContent = 'Could not load scoreboard.';
+      if (empty) {
+        empty.hidden = false;
+        empty.textContent = 'Could not load scoreboard.';
+      }
     });
 })();
