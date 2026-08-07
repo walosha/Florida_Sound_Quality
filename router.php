@@ -36,4 +36,28 @@ if (str_ends_with($path, '.php')) {
     return true;
 }
 
-return false; // static assets → built-in server
+// Serve static files from public/ ourselves. Returning false makes the built-in
+// server look under the project CWD (not public/), which 404s assets that exist
+// only under public/ (e.g. /assets/svg/width-height.svg).
+$mimeByExt = [
+    'css'  => 'text/css; charset=UTF-8',
+    'js'   => 'application/javascript; charset=UTF-8',
+    'svg'  => 'image/svg+xml',
+    'png'  => 'image/png',
+    'jpg'  => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'webp' => 'image/webp',
+    'gif'  => 'image/gif',
+    'ico'  => 'image/x-icon',
+    'woff' => 'font/woff',
+    'woff2'=> 'font/woff2',
+    'map'  => 'application/json',
+    'json' => 'application/json',
+    'txt'  => 'text/plain; charset=UTF-8',
+    'pdf'  => 'application/pdf',
+];
+$ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+header('Content-Type: ' . ($mimeByExt[$ext] ?? 'application/octet-stream'));
+header('Content-Length: ' . (string) filesize($path));
+readfile($path);
+return true;

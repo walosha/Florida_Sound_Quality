@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/competitors.php';
 require_once __DIR__ . '/../includes/pdf.php';
 require_once __DIR__ . '/../includes/storage.php';
 require_once __DIR__ . '/../includes/events.php';
+require_once __DIR__ . '/../includes/stage_markers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -145,6 +146,7 @@ try {
             vehicle_year, vehicle_make, vehicle_model, vehicle_color,
             sub_bass, mid_bass, midrange, high_freq, spectral_balance, tonal_notes,
             listening_position, width, height, depth, ambience, stage_notes,
+            stage_markers_wh, stage_markers_depth,
             imaging_score, imaging_notes,
             noise, listening_pleasure, noise_notes, listening_notes,
             tonal_total, stage_total, grand_total, placement, paper_sheet_key
@@ -155,6 +157,7 @@ try {
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
+            ?, ?,
             ?, ?,
             ?, ?, ?, ?,
             ?, ?, ?, ?, ?
@@ -185,6 +188,8 @@ try {
             $data['depth'],
             $data['ambience'],
             $data['stage_notes'],
+            encodeStageMarkers($data['stage_markers_wh'] ?? []),
+            encodeStageMarkers($data['stage_markers_depth'] ?? []),
             $data['imaging_score'],
             $data['imaging_notes'],
             $data['noise'],

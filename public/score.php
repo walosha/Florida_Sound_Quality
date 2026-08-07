@@ -10,6 +10,7 @@ require_once __DIR__ . '/../includes/validation.php';
 require_once __DIR__ . '/../includes/competitors.php';
 require_once __DIR__ . '/../includes/events.php';
 require_once __DIR__ . '/../includes/pagination.php';
+require_once __DIR__ . '/../includes/stage_markers.php';
 
 requireRole('judge');
 $token = csrfToken();
@@ -317,6 +318,9 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                         }
                     }
                     ?>
+                    <div class="stage-diagrams" aria-label="Soundstage position diagrams">
+                        <?php renderStageDiagramsInteractive(); ?>
+                    </div>
                     <div class="field">
                         <label for="stage_notes">Notes</label>
                         <textarea id="stage_notes" name="stage_notes" rows="2"></textarea>

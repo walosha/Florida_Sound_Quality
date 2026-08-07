@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/db.php';
 require_once __DIR__ . '/../../includes/pagination.php';
+require_once __DIR__ . '/../../includes/stage_markers.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
@@ -70,6 +71,8 @@ if ($action === 'detail') {
             s.depth,
             s.ambience,
             s.stage_notes,
+            s.stage_markers_wh,
+            s.stage_markers_depth,
             s.stage_total,
             s.imaging_score,
             s.imaging_notes,
@@ -119,6 +122,8 @@ if ($action === 'detail') {
         'depth'              => $int($row['depth']),
         'ambience'           => $int($row['ambience']),
         'stage_notes'        => $str($row['stage_notes']),
+        'stage_markers_wh'   => parseStageMarkers($row['stage_markers_wh'] ?? null, 'width_height') ?? [],
+        'stage_markers_depth'=> parseStageMarkers($row['stage_markers_depth'] ?? null, 'depth') ?? [],
         'stage_total'        => $int($row['stage_total']),
         'imaging_score'      => $int($row['imaging_score']),
         'imaging_notes'      => $str($row['imaging_notes']),
