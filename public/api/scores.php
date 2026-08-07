@@ -31,7 +31,8 @@ if ($action === 'events') {
         'SELECT event_name, MAX(created_at) AS latest
          FROM scores
          GROUP BY event_name
-         ORDER BY latest DESC'
+         ORDER BY latest DESC
+         LIMIT 100'
     );
     $events = array_map(static fn (array $r): string => (string) $r['event_name'], $rows);
     echo json_encode(['events' => $events, 'default' => $events[0] ?? null]);

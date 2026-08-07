@@ -26,7 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Too many failed attempts. Try again in 15 minutes.';
     } else {
         $emailValue = trim((string) ($_POST['email'] ?? ''));
+        // bcrypt only uses the first 72 bytes; reject oversized input to avoid DoS.
         $password = (string) ($_POST['password'] ?? '');
+        if (strlen($password) > 72) {
+            $password = substr($password, 0, 72);
+        }
 
         $user = authenticateUser($emailValue, $password);
         if ($user !== null) {

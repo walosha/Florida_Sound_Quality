@@ -17,19 +17,21 @@ require_once __DIR__ . '/pagination.php';
  */
 function adminDashboardCounts(): array
 {
-    $competitors = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM competitors')['cnt'] ?? 0);
-    $registered = (int) (dbFetchOne(
-        'SELECT COUNT(*) AS cnt FROM competitors WHERE status = \'registered\''
-    )['cnt'] ?? 0);
-    $scored = (int) (dbFetchOne(
-        'SELECT COUNT(*) AS cnt FROM competitors WHERE status = \'scored\''
-    )['cnt'] ?? 0);
-    $sent = (int) (dbFetchOne(
-        'SELECT COUNT(*) AS cnt FROM competitors WHERE scorecard_sent_at IS NOT NULL'
-    )['cnt'] ?? 0);
-    $scores = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM scores')['cnt'] ?? 0);
-    $events = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM events')['cnt'] ?? 0);
-    $staff = (int) (dbFetchOne('SELECT COUNT(*) AS cnt FROM users')['cnt'] ?? 0);
+    $row = dbFetchOne(
+        'SELECT
+            (SELECT COUNT(*) FROM competitors) AS competitors,
+            (SELECT COUNT(*) FROM competitors WHERE status = \'registered\') AS registered,
+            (SELECT COUNT(*) FROM competitors WHERE status = \'scored\') AS scored,
+            (SELECT COUNT(*) FROM competitors WHERE scorecard_sent_at IS NOT NULL) AS sent,
+            (SELECT COUNT(*) FROM scores) AS scores,
+            (SELECT COUNT(*) FROM events) AS events,
+            (SELECT COUNT(*) FROM users) AS staff'
+    ) ?? [];
+
+    $competitors = (int) ($row['competitors'] ?? 0);
+    $registered = (int) ($row['registered'] ?? 0);
+    $scored = (int) ($row['scored'] ?? 0);
+    $sent = (int) ($row['sent'] ?? 0);
     $pending = max(0, $scored - $sent);
 
     return [
@@ -38,9 +40,9 @@ function adminDashboardCounts(): array
         'scored'              => $scored,
         'sent'                => $sent,
         'pending_scorecards'  => $pending,
-        'scores'              => $scores,
-        'events'              => $events,
-        'staff'               => $staff,
+        'scores'              => (int) ($row['scores'] ?? 0),
+        'events'              => (int) ($row['events'] ?? 0),
+        'staff'               => (int) ($row['staff'] ?? 0),
     ];
 }
 

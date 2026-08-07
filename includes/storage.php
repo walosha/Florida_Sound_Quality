@@ -97,6 +97,7 @@ function storeObject(string $key, string $body, string $contentType): array
     $resp = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $cerr = curl_error($ch);
+    curl_close($ch);
 
     if ($resp === false) {
         error_log('S3 put curl error: ' . $cerr);

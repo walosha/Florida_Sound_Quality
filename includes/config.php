@@ -140,3 +140,7 @@ function isHttps(): bool
 // Rate-limit policy (Q5): 5 failures / 15 min lockout
 define('LOGIN_MAX_ATTEMPTS', 5);
 define('LOGIN_LOCKOUT_SECONDS', 900);
+
+// Public competitor registration: 5 attempts per IP per hour
+define('REGISTRATION_MAX_ATTEMPTS', 5);
+define('REGISTRATION_WINDOW_SECONDS', 3600);

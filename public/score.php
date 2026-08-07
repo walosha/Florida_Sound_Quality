@@ -312,7 +312,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                     ?>
                     <div class="field">
                         <label for="tonal_notes">Notes</label>
-                        <textarea id="tonal_notes" name="tonal_notes" rows="2"></textarea>
+                        <textarea id="tonal_notes" name="tonal_notes" rows="2" maxlength="2000"></textarea>
                     </div>
                 </section>
 
@@ -333,7 +333,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                     </div>
                     <div class="field">
                         <label for="stage_notes">Notes</label>
-                        <textarea id="stage_notes" name="stage_notes" rows="2"></textarea>
+                        <textarea id="stage_notes" name="stage_notes" rows="2" maxlength="2000"></textarea>
                     </div>
                 </section>
 
@@ -345,7 +345,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                     <?php renderStepper('imaging_score', 'Imaging', 1, 50); ?>
                     <div class="field">
                         <label for="imaging_notes">Notes</label>
-                        <textarea id="imaging_notes" name="imaging_notes" rows="2"></textarea>
+                        <textarea id="imaging_notes" name="imaging_notes" rows="2" maxlength="2000"></textarea>
                     </div>
                 </section>
 
@@ -363,11 +363,11 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                     ?>
                     <div class="field">
                         <label for="noise_notes">Noise notes</label>
-                        <textarea id="noise_notes" name="noise_notes" rows="2"></textarea>
+                        <textarea id="noise_notes" name="noise_notes" rows="2" maxlength="2000"></textarea>
                     </div>
                     <div class="field">
                         <label for="listening_notes">Listening notes</label>
-                        <textarea id="listening_notes" name="listening_notes" rows="2"></textarea>
+                        <textarea id="listening_notes" name="listening_notes" rows="2" maxlength="2000"></textarea>
                     </div>
                 </section>
 
