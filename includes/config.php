@@ -144,3 +144,13 @@ define('LOGIN_LOCKOUT_SECONDS', 900);
 // Public competitor registration: 5 attempts per IP per hour
 define('REGISTRATION_MAX_ATTEMPTS', 5);
 define('REGISTRATION_WINDOW_SECONDS', 3600);
+
+// Judge score submit: min gap between attempts (session)
+define('SUBMIT_COOLDOWN_SECONDS', 5);
+
+// Admin scorecard email: min gap between sends per competitor (session)
+define('SCORECARD_RESEND_COOLDOWN_SECONDS', 60);
+
+// Deferred Dompdf archive after score submit
+define('PDF_ARCHIVE_MEMORY_LIMIT', '192M');
+define('PDF_ARCHIVE_TIME_LIMIT', 90);

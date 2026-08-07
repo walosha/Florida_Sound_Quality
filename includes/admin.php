@@ -5,6 +5,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/competitors.php';
 require_once __DIR__ . '/pdf.php';
 require_once __DIR__ . '/email.php';
@@ -108,6 +109,14 @@ function findScoreByCompetitorId(int $competitorId): ?array
  */
 function sendCompetitorScorecard(int $competitorId): array
 {
+    if (isScorecardResendCoolingDown($competitorId)) {
+        return [
+            'ok' => false,
+            'error' => 'Please wait a minute before resending this scorecard.',
+            'provider' => null,
+        ];
+    }
+
     $competitor = findCompetitorById($competitorId);
     if ($competitor === null) {
         return ['ok' => false, 'error' => 'Competitor not found.', 'provider' => null];
@@ -131,14 +140,21 @@ function sendCompetitorScorecard(int $competitorId): array
         return ['ok' => false, 'error' => 'Competitor has no valid email address.', 'provider' => null];
     }
 
+    // Mark before heavy work so rapid double-clicks cannot queue multiple sends.
+    markScorecardResendAttempt($competitorId);
+
     try {
+        @ini_set('memory_limit', PDF_ARCHIVE_MEMORY_LIMIT);
+        @set_time_limit(PDF_ARCHIVE_TIME_LIMIT);
         $pdf = generateScorecardPdf($score);
     } catch (Throwable $e) {
+        clearScorecardResendAttempt($competitorId);
         error_log('Scorecard PDF failed: ' . $e->getMessage());
         return ['ok' => false, 'error' => 'Could not generate PDF scorecard.', 'provider' => null];
     }
 
     $mail = sendScorecardEmail($score, $pdf, null);
+    unset($pdf);
     if (!$mail['ok']) {
         return $mail;
     }

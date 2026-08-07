@@ -368,6 +368,68 @@ function recordRegistrationAttempt(string $ip): void
 }
 
 /**
+ * True if this judge session submitted a score too recently.
+ */
+function isSubmitCoolingDown(): bool
+{
+    startAppSession();
+    $last = (int) ($_SESSION['last_score_submit_at'] ?? 0);
+    if ($last <= 0) {
+        return false;
+    }
+    return (time() - $last) < SUBMIT_COOLDOWN_SECONDS;
+}
+
+/**
+ * Mark a score-submit attempt for session cooldown.
+ */
+function markSubmitAttempt(): void
+{
+    startAppSession();
+    $_SESSION['last_score_submit_at'] = time();
+}
+
+/**
+ * True if an admin resent a scorecard for this competitor too recently.
+ */
+function isScorecardResendCoolingDown(int $competitorId): bool
+{
+    startAppSession();
+    $map = $_SESSION['scorecard_resend_at'] ?? [];
+    if (!is_array($map)) {
+        return false;
+    }
+    $last = (int) ($map[$competitorId] ?? 0);
+    if ($last <= 0) {
+        return false;
+    }
+    return (time() - $last) < SCORECARD_RESEND_COOLDOWN_SECONDS;
+}
+
+/**
+ * Mark a scorecard send attempt for per-competitor cooldown.
+ */
+function markScorecardResendAttempt(int $competitorId): void
+{
+    startAppSession();
+    if (!isset($_SESSION['scorecard_resend_at']) || !is_array($_SESSION['scorecard_resend_at'])) {
+        $_SESSION['scorecard_resend_at'] = [];
+    }
+    $_SESSION['scorecard_resend_at'][$competitorId] = time();
+}
+
+/**
+ * Allow an immediate scorecard retry after a non-send failure (e.g. PDF generation).
+ */
+function clearScorecardResendAttempt(int $competitorId): void
+{
+    startAppSession();
+    if (isset($_SESSION['scorecard_resend_at']) && is_array($_SESSION['scorecard_resend_at'])) {
+        unset($_SESSION['scorecard_resend_at'][$competitorId]);
+    }
+}
+
+/**
  * Generate and store a CSRF token; return it.
  */
 function csrfToken(): string
