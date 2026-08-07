@@ -140,6 +140,104 @@
     return `<p class="score-detail-notes"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(text)}</p>`;
   }
 
+  const MARKER_COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b9770e'];
+  const STAGE_DIAGRAMS = [
+    {
+      key: 'stage_markers_wh',
+      src: '/assets/svg/width-height.svg',
+      label: 'Width / Height',
+      vbW: 168,
+      vbH: 94,
+    },
+    {
+      key: 'stage_markers_depth',
+      src: '/assets/svg/depth.svg',
+      label: 'Depth',
+      vbW: 247,
+      vbH: 92,
+    },
+  ];
+
+  function normalizeMarkers(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((m) => {
+        if (!m || typeof m !== 'object') return false;
+        if (m.x == null || m.y == null || m.x === '' || m.y === '') return false;
+        return Number.isFinite(Number(m.x)) && Number.isFinite(Number(m.y));
+      })
+      .slice(0, 4)
+      .map((m) => ({ x: Number(m.x), y: Number(m.y) }));
+  }
+
+  function appendStaticMarkers(svg, markers, vbW, vbH) {
+    let layer = svg.querySelector('.stage-marker-layer');
+    if (!layer) {
+      layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      layer.setAttribute('class', 'stage-marker-layer is-static');
+      svg.appendChild(layer);
+    }
+    layer.replaceChildren();
+    const pinR = Math.max(2.2, Math.min(vbW, vbH) * 0.035);
+    markers.forEach((m, i) => {
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'stage-marker');
+      g.setAttribute('transform', `translate(${m.x},${m.y})`);
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('r', String(pinR));
+      circle.setAttribute('fill', MARKER_COLORS[i] || '#333');
+      circle.setAttribute('stroke', '#fff');
+      circle.setAttribute('stroke-width', String(Math.max(0.6, pinR * 0.28)));
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.setAttribute('y', '0.15');
+      text.setAttribute('font-size', String(pinR * 1.05));
+      text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+      text.setAttribute('font-weight', '700');
+      text.setAttribute('fill', '#ffffff');
+      text.textContent = String(i + 1);
+
+      g.appendChild(circle);
+      g.appendChild(text);
+      layer.appendChild(g);
+    });
+  }
+
+  async function mountStageDiagrams(container, detail) {
+    if (!container) return;
+    const blocks = await Promise.all(
+      STAGE_DIAGRAMS.map(async (diag) => {
+        const markers = normalizeMarkers(detail[diag.key]);
+        const wrap = document.createElement('div');
+        wrap.className = 'stage-diagram is-static';
+        wrap.innerHTML = `<h4 class="stage-diagram-title">${escapeHtml(diag.label)}</h4>
+          <div class="stage-diagram-canvas"></div>`;
+        const canvas = wrap.querySelector('.stage-diagram-canvas');
+        try {
+          const res = await fetch(diag.src, { credentials: 'same-origin' });
+          if (!res.ok) throw new Error('svg fetch failed');
+          const text = await res.text();
+          const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+          const svg = doc.documentElement;
+          if (!svg || svg.nodeName.toLowerCase() !== 'svg') throw new Error('bad svg');
+          svg.removeAttribute('width');
+          svg.removeAttribute('height');
+          svg.setAttribute('class', 'stage-diagram-svg is-static');
+          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+          canvas.appendChild(document.importNode(svg, true));
+          appendStaticMarkers(canvas.querySelector('svg'), markers, diag.vbW, diag.vbH);
+        } catch (err) {
+          canvas.innerHTML = '<p class="field-hint">Diagram unavailable.</p>';
+        }
+        return wrap;
+      })
+    );
+    container.replaceChildren(...blocks);
+  }
+
   function renderDetail(d) {
     if (!detailBody) return;
     const placement = d.placement
@@ -177,6 +275,7 @@
         ${metricRow('Depth', d.depth, 10)}
         ${metricRow('Ambience', d.ambience, 10)}
         ${metricRow('Stage subtotal', d.stage_total, 65)}
+        <div class="stage-diagrams score-detail-diagrams" data-stage-diagrams></div>
         ${notesBlock('Notes', d.stage_notes)}
       </section>
 
@@ -194,6 +293,8 @@
         ${notesBlock('Listening notes', d.listening_notes)}
       </section>
     `;
+
+    mountStageDiagrams(detailBody.querySelector('[data-stage-diagrams]'), d);
   }
 
   async function openDetail(scoreId) {

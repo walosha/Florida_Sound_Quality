@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS scores (
     depth            TINYINT UNSIGNED NOT NULL,
     ambience         TINYINT UNSIGNED NOT NULL,
     stage_notes      TEXT,
+    -- optional sound-stage diagram pins (viewBox coords; visual only, not scores)
+    stage_markers_wh    JSON NULL,
+    stage_markers_depth JSON NULL,
     -- imaging
     imaging_score    TINYINT UNSIGNED NOT NULL,
     imaging_notes    TEXT,

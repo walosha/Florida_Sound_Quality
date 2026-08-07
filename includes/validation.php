@@ -5,6 +5,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/stage_markers.php';
+
 /**
  * Score field definitions: name => [min, max, label, section].
  *
@@ -125,6 +127,18 @@ function validateScoreSubmission(array $input): array
     foreach (['tonal_notes', 'stage_notes', 'imaging_notes', 'noise_notes', 'listening_notes'] as $key) {
         $val = trim((string) ($input[$key] ?? ''));
         $data[$key] = $val === '' ? null : $val;
+    }
+
+    // Sound-stage diagram pins — optional visual layer (not scores).
+    foreach (stageDiagramDefs() as $diagramId => $def) {
+        $field = $def['field'];
+        $parsed = parseStageMarkers($input[$field] ?? '', $diagramId, true);
+        if ($parsed === null) {
+            $errors[$field] = 'Invalid marker positions.';
+            $data[$field] = [];
+        } else {
+            $data[$field] = $parsed;
+        }
     }
 
     // Placement — optional

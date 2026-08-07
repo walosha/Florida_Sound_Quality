@@ -320,6 +320,196 @@
     paperClear.addEventListener('click', () => resetPaperSheet());
   }
 
+  /**
+   * Sound-stage diagram pins — visual only; coords are viewBox-relative.
+   * Pins are numbered 1–4 by placement order; not mapped to score categories.
+   */
+  const MARKER_COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b9770e'];
+
+  function parseMarkersJson(raw) {
+    if (!raw) return [];
+    try {
+      const data = JSON.parse(raw);
+      if (!Array.isArray(data)) return [];
+      return data
+        .filter((m) => {
+          if (!m || typeof m !== 'object') return false;
+          if (m.x == null || m.y == null || m.x === '' || m.y === '') return false;
+          return Number.isFinite(Number(m.x)) && Number.isFinite(Number(m.y));
+        })
+        .slice(0, 4)
+        .map((m) => ({ x: Number(m.x), y: Number(m.y) }));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function clientToSvgPoint(svg, clientX, clientY) {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = clientX;
+    pt.y = clientY;
+    return pt.matrixTransform(ctm.inverse());
+  }
+
+  function clamp(n, min, max) {
+    return Math.min(max, Math.max(min, n));
+  }
+
+  function initStageDiagram(wrap) {
+    const svg = wrap.querySelector('svg.stage-diagram-svg');
+    const layer = wrap.querySelector('.stage-marker-layer');
+    const input = form.elements.namedItem(wrap.dataset.field);
+    const clearBtn = wrap.querySelector('.stage-diagram-clear');
+    if (!svg || !layer || !input) return;
+
+    const max = Number(wrap.dataset.max) || 4;
+    const vbX = Number(wrap.dataset.vbX) || 0;
+    const vbY = Number(wrap.dataset.vbY) || 0;
+    const vbW = Number(wrap.dataset.vbW) || 100;
+    const vbH = Number(wrap.dataset.vbH) || 100;
+    const pinR = Math.max(2.2, Math.min(vbW, vbH) * 0.035);
+
+    let markers = parseMarkersJson(input.value);
+    let dragIndex = -1;
+
+    function syncInput() {
+      input.value = JSON.stringify(markers.map((m) => ({
+        x: Math.round(m.x * 1000) / 1000,
+        y: Math.round(m.y * 1000) / 1000,
+      })));
+      if (clearBtn) clearBtn.hidden = markers.length === 0;
+      scheduleDraftSave();
+    }
+
+    function renderMarkers() {
+      layer.replaceChildren();
+      markers.forEach((m, i) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'stage-marker');
+        g.setAttribute('data-index', String(i));
+        g.setAttribute('transform', `translate(${m.x},${m.y})`);
+        g.style.cursor = 'grab';
+        g.style.touchAction = 'none';
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('class', 'stage-marker-pin');
+        circle.setAttribute('r', String(pinR));
+        circle.setAttribute('fill', MARKER_COLORS[i] || '#333');
+        circle.setAttribute('stroke', '#fff');
+        circle.setAttribute('stroke-width', String(Math.max(0.6, pinR * 0.28)));
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('class', 'stage-marker-label');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('y', '0.15');
+        text.setAttribute('font-size', String(pinR * 1.05));
+        text.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+        text.setAttribute('font-weight', '700');
+        text.setAttribute('fill', '#ffffff');
+        text.style.pointerEvents = 'none';
+        text.textContent = String(i + 1);
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        layer.appendChild(g);
+      });
+    }
+
+    function setMarkerPos(index, x, y) {
+      markers[index] = {
+        x: clamp(x, vbX, vbX + vbW),
+        y: clamp(y, vbY, vbY + vbH),
+      };
+      const g = layer.querySelector(`[data-index="${index}"]`);
+      if (g) {
+        g.setAttribute('transform', `translate(${markers[index].x},${markers[index].y})`);
+      }
+    }
+
+    function markerIndexFromTarget(target) {
+      const g = target && target.closest ? target.closest('.stage-marker') : null;
+      if (!g || !layer.contains(g)) return -1;
+      const idx = Number(g.getAttribute('data-index'));
+      return Number.isFinite(idx) ? idx : -1;
+    }
+
+    function onPointerDown(e) {
+      if (e.button != null && e.button !== 0) return;
+      const pt = clientToSvgPoint(svg, e.clientX, e.clientY);
+      if (!pt) return;
+
+      const hit = markerIndexFromTarget(e.target);
+
+      if (hit >= 0) {
+        dragIndex = hit;
+      } else if (markers.length < max) {
+        markers.push({ x: clamp(pt.x, vbX, vbX + vbW), y: clamp(pt.y, vbY, vbY + vbH) });
+        dragIndex = markers.length - 1;
+        renderMarkers();
+        syncInput();
+      } else {
+        return;
+      }
+
+      const g = layer.querySelector(`[data-index="${dragIndex}"]`);
+      if (g) g.style.cursor = 'grabbing';
+      svg.classList.add('is-dragging');
+      try {
+        svg.setPointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+      e.preventDefault();
+    }
+
+    function onPointerMove(e) {
+      if (dragIndex < 0) return;
+      const pt = clientToSvgPoint(svg, e.clientX, e.clientY);
+      if (!pt) return;
+      setMarkerPos(dragIndex, pt.x, pt.y);
+      e.preventDefault();
+    }
+
+    function onPointerUp(e) {
+      if (dragIndex < 0) return;
+      const g = layer.querySelector(`[data-index="${dragIndex}"]`);
+      if (g) g.style.cursor = 'grab';
+      dragIndex = -1;
+      svg.classList.remove('is-dragging');
+      try {
+        svg.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+      syncInput();
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown);
+    svg.addEventListener('pointermove', onPointerMove);
+    svg.addEventListener('pointerup', onPointerUp);
+    svg.addEventListener('pointercancel', onPointerUp);
+    svg.style.touchAction = 'none';
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        markers = [];
+        renderMarkers();
+        syncInput();
+      });
+    }
+
+    // Restore from draft / existing hidden value
+    renderMarkers();
+    if (clearBtn) clearBtn.hidden = markers.length === 0;
+  }
+
+  function initStageDiagrams() {
+    form.querySelectorAll('.stage-diagram').forEach((wrap) => initStageDiagram(wrap));
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     clearErrors();
@@ -412,4 +602,6 @@
   }
   syncEventFromSelect();
   updateTotals();
+  // After draft restore so hidden marker JSON is already populated
+  initStageDiagrams();
 })();

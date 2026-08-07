@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/stage_markers.php';
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -115,6 +116,11 @@ function buildScorecardHtml(array $score): string
     $noiseScore = isset($score['noise']) ? (string) $score['noise'] : '';
     $lpScore = isset($score['listening_pleasure']) ? (string) $score['listening_pleasure'] : '';
 
+    $markersWh = parseStageMarkers($score['stage_markers_wh'] ?? [], 'width_height') ?? [];
+    $markersDepth = parseStageMarkers($score['stage_markers_depth'] ?? [], 'depth') ?? [];
+    $diagWh = stageDiagramPdfHtml('width_height', $markersWh);
+    $diagDepth = stageDiagramPdfHtml('depth', $markersDepth);
+
     return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
         @page { margin: 20px 24px; size: letter portrait; }
         body { margin:0; padding:0; font-family: Helvetica, Arial, sans-serif; font-size:8pt; color:#000; background:#fff; }
@@ -124,7 +130,9 @@ function buildScorecardHtml(array $score): string
         .dat { font-size:9.5pt; padding:1px 4px 5px; line-height:1.15; min-height:11px; }
         .bar { font-size:8pt; font-weight:bold; text-transform:uppercase; letter-spacing:0.04em; padding:3px 5px; line-height:1.1; }
         .name-row .dat { padding-bottom:10px; }
-        .diag-box { height:118px; line-height:118px; font-size:1px; overflow:hidden; }
+        .diag-box { height:118px; overflow:hidden; padding:2px; text-align:center; }
+        .diag-frame { width:100%; height:114px; }
+        .diag-art { display:block; width:100%; height:114px; object-fit:contain; }
         .notes-space-box { height:52px; line-height:52px; font-size:1px; overflow:hidden; }
         .sec { font-size:9.5pt; font-weight:bold; padding:3px 4px; vertical-align:middle; line-height:1.1; width:34%; }
         .score-h { font-size:6.5pt; font-weight:bold; text-align:center; vertical-align:middle; text-transform:uppercase; padding:2px 1px; width:7%; }
@@ -172,8 +180,8 @@ function buildScorecardHtml(array $score): string
           <td colspan="2"><div class="lab">Depth</div><div class="dat" style="padding-bottom:2px;">&nbsp;</div></td>
         </tr>
         <tr>
-          <td colspan="2"><div class="diag-box">&nbsp;</div></td>
-          <td colspan="2"><div class="diag-box">&nbsp;</div></td>
+          <td colspan="2"><div class="diag-box">' . $diagWh . '</div></td>
+          <td colspan="2"><div class="diag-box">' . $diagDepth . '</div></td>
         </tr>
       </table>
 
