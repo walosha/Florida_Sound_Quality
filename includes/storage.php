@@ -21,14 +21,54 @@ const PAPER_SHEET_MIME_MAP = [
 ];
 
 /**
- * Put an object to the configured bucket (SigV4).
+ * Put a string body to the configured bucket (SigV4).
+ * Prefer storeObjectFromFile() for large payloads (paper sheets).
  *
  * @return array{ok:bool,key:?string,url:?string,error:?string}
  */
 function storeObject(string $key, string $body, string $contentType): array
 {
+    return storeObjectPayload($key, $contentType, $body, null);
+}
+
+/**
+ * Stream a local file to S3 (hash_file + CURLOPT_INFILE) without loading it into PHP memory.
+ *
+ * @return array{ok:bool,key:?string,url:?string,error:?string}
+ */
+function storeObjectFromFile(string $key, string $path, string $contentType): array
+{
+    return storeObjectPayload($key, $contentType, null, $path);
+}
+
+/**
+ * Shared SigV4 PUT — either in-memory $body or streamed $path (exactly one).
+ *
+ * @return array{ok:bool,key:?string,url:?string,error:?string}
+ */
+function storeObjectPayload(string $key, string $contentType, ?string $body, ?string $path): array
+{
     if (AWS_S3_BUCKET_NAME === '' || AWS_ACCESS_KEY_ID === '' || AWS_SECRET_ACCESS_KEY === '' || AWS_ENDPOINT_URL === '') {
         return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'S3 is not configured.'];
+    }
+
+    $streamUpload = $path !== null && $path !== '';
+    if ($streamUpload) {
+        if (!is_readable($path)) {
+            return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'Upload source is not readable.'];
+        }
+        $size = filesize($path);
+        if ($size === false || $size <= 0) {
+            return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'Upload source is empty.'];
+        }
+        $payloadHash = hash_file('sha256', $path);
+        if ($payloadHash === false) {
+            return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'Could not hash upload.'];
+        }
+    } else {
+        $body = $body ?? '';
+        $size = strlen($body);
+        $payloadHash = hash('sha256', $body);
     }
 
     $endpoint = rtrim(AWS_ENDPOINT_URL, '/');
@@ -52,7 +92,6 @@ function storeObject(string $key, string $body, string $contentType): array
 
     $amzDate = gmdate('Ymd\THis\Z');
     $dateStamp = gmdate('Ymd');
-    $payloadHash = hash('sha256', $body);
 
     $canonicalHeaders = "content-type:{$contentType}\n"
         . "host:{$host}\n"
@@ -74,30 +113,53 @@ function storeObject(string $key, string $body, string $contentType): array
         . ', SignedHeaders=' . $signedHeaders
         . ', Signature=' . $signature;
 
+    $headers = [
+        'Content-Type: ' . $contentType,
+        'Host: ' . $host,
+        'x-amz-content-sha256: ' . $payloadHash,
+        'x-amz-date: ' . $amzDate,
+        'Authorization: ' . $authorization,
+        'Content-Length: ' . (string) $size,
+    ];
+
     $ch = curl_init($putUrl);
     if ($ch === false) {
         return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'Could not init HTTP client.'];
     }
 
-    curl_setopt_array($ch, [
-        CURLOPT_CUSTOMREQUEST  => 'PUT',
-        CURLOPT_HTTPHEADER     => [
-            'Content-Type: ' . $contentType,
-            'Host: ' . $host,
-            'x-amz-content-sha256: ' . $payloadHash,
-            'x-amz-date: ' . $amzDate,
-            'Authorization: ' . $authorization,
-            'Content-Length: ' . (string) strlen($body),
-        ],
-        CURLOPT_POSTFIELDS     => $body,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 60,
-    ]);
+    $fh = null;
+    if ($streamUpload) {
+        $fh = fopen($path, 'rb');
+        if ($fh === false) {
+            curl_close($ch);
+            return ['ok' => false, 'key' => null, 'url' => null, 'error' => 'Could not open upload for streaming.'];
+        }
+        curl_setopt_array($ch, [
+            CURLOPT_UPLOAD         => true,
+            CURLOPT_CUSTOMREQUEST  => 'PUT',
+            CURLOPT_INFILE         => $fh,
+            CURLOPT_INFILESIZE     => $size,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 120,
+        ]);
+    } else {
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => 'PUT',
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_POSTFIELDS     => $body,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 60,
+        ]);
+    }
 
     $resp = curl_exec($ch);
     $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $cerr = curl_error($ch);
     curl_close($ch);
+    if ($fh !== null) {
+        fclose($fh);
+    }
 
     if ($resp === false) {
         error_log('S3 put curl error: ' . $cerr);
@@ -117,22 +179,36 @@ function storeObject(string $key, string $body, string $contentType): array
  */
 function storeScorecardPdf(int $scoreId, string $pdfBinary, string $eventName): array
 {
-    $safeEvent = preg_replace('/[^a-zA-Z0-9_-]+/', '-', $eventName) ?: 'event';
+    $safeEvent = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', $eventName) ?: 'event';
     $key = sprintf('scorecards/%d-%s-%s.pdf', $scoreId, $safeEvent, bin2hex(random_bytes(4)));
 
-    return storeObject($key, $pdfBinary, 'application/pdf');
+    // Stream via temp file so SHA-256 + PUT do not keep a second copy of the PDF in memory.
+    $tmp = tempnam(sys_get_temp_dir(), 'fsqpdf');
+    if ($tmp === false || file_put_contents($tmp, $pdfBinary) === false) {
+        if (is_string($tmp) && $tmp !== '') {
+            @unlink($tmp);
+        }
+        return storeObject($key, $pdfBinary, 'application/pdf');
+    }
+
+    try {
+        return storeObjectFromFile($key, $tmp, 'application/pdf');
+    } finally {
+        @unlink($tmp);
+    }
 }
 
 /**
  * Validate optional paper sheet upload from $_FILES entry.
+ * Does not load file contents into memory — returns the upload tmp path for streaming.
  *
  * @param array<string, mixed>|null $file
- * @return array{ok:bool,skip:bool,error:?string,binary:?string,mime:?string,ext:?string}
+ * @return array{ok:bool,skip:bool,error:?string,tmp_path:?string,mime:?string,ext:?string}
  */
 function validatePaperSheetUpload(?array $file): array
 {
     if ($file === null || !isset($file['error']) || (int) $file['error'] === UPLOAD_ERR_NO_FILE) {
-        return ['ok' => true, 'skip' => true, 'error' => null, 'binary' => null, 'mime' => null, 'ext' => null];
+        return ['ok' => true, 'skip' => true, 'error' => null, 'tmp_path' => null, 'mime' => null, 'ext' => null];
     }
 
     $err = (int) $file['error'];
@@ -149,7 +225,7 @@ function validatePaperSheetUpload(?array $file): array
             'ok' => false,
             'skip' => false,
             'error' => $messages[$err] ?? 'Upload failed.',
-            'binary' => null,
+            'tmp_path' => null,
             'mime' => null,
             'ext' => null,
         ];
@@ -158,14 +234,14 @@ function validatePaperSheetUpload(?array $file): array
     $tmp = (string) ($file['tmp_name'] ?? '');
     $size = (int) ($file['size'] ?? 0);
     if ($tmp === '' || !is_uploaded_file($tmp)) {
-        return ['ok' => false, 'skip' => false, 'error' => 'Invalid upload.', 'binary' => null, 'mime' => null, 'ext' => null];
+        return ['ok' => false, 'skip' => false, 'error' => 'Invalid upload.', 'tmp_path' => null, 'mime' => null, 'ext' => null];
     }
     if ($size <= 0 || $size > PAPER_SHEET_MAX_BYTES) {
         return [
             'ok' => false,
             'skip' => false,
             'error' => 'Image must be under 12 MB.',
-            'binary' => null,
+            'tmp_path' => null,
             'mime' => null,
             'ext' => null,
         ];
@@ -178,34 +254,31 @@ function validatePaperSheetUpload(?array $file): array
             'ok' => false,
             'skip' => false,
             'error' => 'Use a JPEG, PNG, WebP, or HEIC photo of the paper sheet.',
-            'binary' => null,
+            'tmp_path' => null,
             'mime' => null,
             'ext' => null,
         ];
-    }
-
-    $binary = file_get_contents($tmp);
-    if ($binary === false || $binary === '') {
-        return ['ok' => false, 'skip' => false, 'error' => 'Could not read upload.', 'binary' => null, 'mime' => null, 'ext' => null];
     }
 
     return [
         'ok' => true,
         'skip' => false,
         'error' => null,
-        'binary' => $binary,
+        'tmp_path' => $tmp,
         'mime' => $mime,
         'ext' => PAPER_SHEET_MIME_MAP[$mime],
     ];
 }
 
 /**
+ * Stream a validated paper-sheet temp file to object storage.
+ *
  * @return array{ok:bool,key:?string,url:?string,error:?string}
  */
-function storePaperSheetImage(int $scoreId, string $binary, string $mime, string $ext, string $eventName): array
+function storePaperSheetImage(int $scoreId, string $tmpPath, string $mime, string $ext, string $eventName): array
 {
-    $safeEvent = preg_replace('/[^a-zA-Z0-9_-]+/', '-', $eventName) ?: 'event';
+    $safeEvent = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', $eventName) ?: 'event';
     $key = sprintf('paper-sheets/%d-%s-%s.%s', $scoreId, $safeEvent, bin2hex(random_bytes(4)), $ext);
 
-    return storeObject($key, $binary, $mime);
+    return storeObjectFromFile($key, $tmpPath, $mime);
 }

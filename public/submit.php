@@ -1,7 +1,8 @@
 <?php
 /**
  * POST /submit.php — validate, insert score for a registered competitor (idempotent).
- * PDF may be archived to S3; email is admin-triggered (Phase 3), not sent here.
+ * Paper sheet streams to S3 before the JSON response; PDF archive runs deferred after
+ * the response is flushed (not emailed here — admin-triggered in Phase 3).
  */
 
 declare(strict_types=1);
@@ -35,6 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
     http_response_code(403);
     echo json_encode(['success' => false, 'errors' => ['_form' => 'Invalid CSRF token.']]);
+    exit;
+}
+
+if (isSubmitCoolingDown()) {
+    http_response_code(429);
+    echo json_encode([
+        'success' => false,
+        'errors'  => ['_form' => 'Please wait a few seconds before submitting again.'],
+    ]);
     exit;
 }
 
@@ -107,6 +117,7 @@ $existing = dbFetchOne(
     [$data['submission_uuid']]
 );
 if ($existing !== null) {
+    markSubmitAttempt();
     http_response_code(200);
     echo json_encode([
         'success'    => true,
@@ -218,6 +229,7 @@ try {
     }
     // Race on UNIQUE submission_uuid or competitor_id
     if ((int) $e->getCode() === 23000) {
+        markSubmitAttempt();
         $row = dbFetchOne(
             'SELECT id FROM scores WHERE submission_uuid = ? OR competitor_id = ?',
             [$data['submission_uuid'], $competitorId]
@@ -237,21 +249,19 @@ try {
     exit;
 }
 
-$pdfStored = false;
+markSubmitAttempt();
+
 $paperStored = false;
-
-try {
-    $pdf = generateScorecardPdf($data);
-    $store = storeScorecardPdf($scoreId, $pdf, (string) $data['event_name']);
-    $pdfStored = $store['ok'];
-    if (!$pdfStored) {
-        error_log('PDF archive skipped/failed: ' . ($store['error'] ?? 'unknown'));
-    }
-
-    if (!$paperUpload['skip'] && $paperUpload['binary'] !== null && $paperUpload['mime'] !== null && $paperUpload['ext'] !== null) {
+if (
+    !$paperUpload['skip']
+    && $paperUpload['tmp_path'] !== null
+    && $paperUpload['mime'] !== null
+    && $paperUpload['ext'] !== null
+) {
+    try {
         $paperStore = storePaperSheetImage(
             $scoreId,
-            $paperUpload['binary'],
+            $paperUpload['tmp_path'],
             $paperUpload['mime'],
             $paperUpload['ext'],
             (string) $data['event_name']
@@ -269,17 +279,43 @@ try {
         } else {
             error_log('Paper sheet archive skipped/failed: ' . ($paperStore['error'] ?? 'unknown'));
         }
+    } catch (Throwable $e) {
+        error_log('Paper sheet archive failed after save: ' . $e->getMessage());
     }
-} catch (Throwable $e) {
-    error_log('PDF/storage failed after save: ' . $e->getMessage());
 }
 
+// Respond to the judge immediately; PDF archive is best-effort and deferred.
 http_response_code(201);
 echo json_encode([
     'success'     => true,
     'scoreId'     => $scoreId,
-    'pdfStored'   => $pdfStored,
+    'pdfStored'   => false,
+    'pdfQueued'   => true,
     'paperStored' => $paperStored,
     'grandTotal'  => $data['grand_total'],
     'redirect'    => '/score.php',
 ]);
+
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} else {
+    while (ob_get_level() > 0) {
+        ob_end_flush();
+    }
+    flush();
+}
+
+ignore_user_abort(true);
+@ini_set('memory_limit', PDF_ARCHIVE_MEMORY_LIMIT);
+@set_time_limit(PDF_ARCHIVE_TIME_LIMIT);
+
+try {
+    $pdf = generateScorecardPdf($data);
+    $store = storeScorecardPdf($scoreId, $pdf, (string) $data['event_name']);
+    unset($pdf);
+    if (!$store['ok']) {
+        error_log('PDF archive skipped/failed: ' . ($store['error'] ?? 'unknown'));
+    }
+} catch (Throwable $e) {
+    error_log('Deferred PDF archive failed after save: ' . $e->getMessage());
+}

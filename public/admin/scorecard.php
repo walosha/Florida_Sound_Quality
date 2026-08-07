@@ -36,15 +36,17 @@ if ($competitor !== null) {
     }
 }
 
-try {
-    $pdf = generateScorecardPdf($score);
-} catch (Throwable $e) {
-    error_log('Admin PDF download failed: ' . $e->getMessage());
-    http_response_code(500);
-    header('Content-Type: text/plain; charset=UTF-8');
-    echo 'Could not generate PDF.';
-    exit;
-}
+    try {
+        @ini_set('memory_limit', PDF_ARCHIVE_MEMORY_LIMIT);
+        @set_time_limit(PDF_ARCHIVE_TIME_LIMIT);
+        $pdf = generateScorecardPdf($score);
+    } catch (Throwable $e) {
+        error_log('Admin PDF download failed: ' . $e->getMessage());
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo 'Could not generate PDF.';
+        exit;
+    }
 
 $eventSlug = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', (string) $score['event_name']) ?: 'event';
 $nameSlug = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', (string) $score['competitor_name']) ?: 'competitor';
