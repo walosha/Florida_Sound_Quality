@@ -26,7 +26,7 @@ Florida Sound Quality is a mobile-first web app that replaces paper score sheets
 - **Local secrets:** project root `.env` (copy from `.env.example`; `.env` is gitignored — never commit it).
 - **Production secrets:** Railway dashboard → project `florida-sound-quality` → service **web** → Variables. MySQL plugin vars are referenced into web (`MYSQLHOST`, `MYSQLPORT`, `MYSQLUSER`, `MYSQLPASSWORD`, `MYSQLDATABASE`). Mail/S3 vars are set on web (see key names in `.env.example`).
 - **Staff passwords:** bcrypt hashes in MySQL table `users` (not in client JS/HTML). Seeded demo accounts come from `seed.sql` (change in production).
-- **No plaintext secrets in this document.** Real values live in the Railway Variables UI (and local `.env`). Whether a shared vault (e.g. 1Password) is also used: **TBD — confirm with Olawale**.
+- **No plaintext secrets in this document.** Real values live in the Railway Variables UI (and local `.env`). Whether a shared vault (e.g. 1Password) is also used: **TBD**.
 
 | Account type | How created | Notes |
 |--------------|-------------|--------|
@@ -34,7 +34,7 @@ Florida Sound Quality is a mobile-first web app that replaces paper score sheets
 | **Judge** | Admin panel → Judge accounts → **Create judge** (`createJudgeAccount()` inserts `users` with `role = 'judge'`), or seed. | Email + password + display name. |
 | **Competitor** | No login. Public form at `/competitor.php` inserts a `competitors` row (`status = registered`). | One shared registration link for all; invite tokens removed (Phase 6). |
 
-Legacy note: Railway may still list `JUDGE_PASSWORD_HASH`; product auth is the `users` table — shared judge password was removed in Phase 4. Confirm leftover env vars are unused before deleting: **TBD — confirm with Olawale**.
+Legacy note: Railway may still list `JUDGE_PASSWORD_HASH`; product auth is the `users` table — shared judge password was removed in Phase 4. Confirm leftover env vars are unused before deleting: **TBD**.
 
 ---
 
@@ -71,11 +71,11 @@ Legacy note: Railway may still list `JUDGE_PASSWORD_HASH`; product auth is the `
 
 ## 5. Current State — What's In Progress / Uncertain
 
-- **SVG marker → category mapping** — Pins are numbered 1–4 only; **not** mapped to Width/Height/Depth/Ambience. **Open question to client:** confirm if pin 1–4 should map to those categories (or anything else). **Asked:** 2026-08-07. **Waiting on:** Amar. (Source: [Soundstage SVG markers](dc39c9f2-ab13-4eeb-9028-275d19901ca0) implementation notes.)
-- **Scoreboard detail — Width display** — Confirm Width value is not clipped in the detail panel after SVG diagram layout changes. **Status:** not fully signed off visually. **TBD — confirm with Olawale** after a hard-refresh check on live `/scoreboard.php`.
+- **SVG marker → category mapping** — Pins are numbered 1–4 only; **not** mapped to Width/Height/Depth/Ambience. **Open question to client:** confirm if pin 1–4 should map to those categories (or anything else). **Asked:** 2026-08-07. **Waiting on:** client. (Source: [Soundstage SVG markers](dc39c9f2-ab13-4eeb-9028-275d19901ca0) implementation notes.)
+- **Scoreboard detail — Width display** — Confirm Width value is not clipped in the detail panel after SVG diagram layout changes. **Status:** not fully signed off visually. **TBD** — hard-refresh check on live `/scoreboard.php`.
 - **nginx upload body-size fix** — Live redeploy raised `client_max_body_size` / PHP upload limits after nginx 413 on ~2 MB paper-sheet POST (2026-08-07). Local changes (`nginx.template.conf`, `nixpacks.toml`, README note) were **not committed to `main` at handover time**. *Verify:* commit/push so git matches production; re-test paper-sheet upload on live.
 - **README vs code on auto-email** — README “Email & scorecard” section still describes email-on-submit; `submit.php` comment and Phase 2/3 behavior: email is admin-only. Docs cleanup pending.
-- **Secrets vault** — Railway Variables confirmed as production store; shared team vault: **TBD — confirm with Olawale**.
+- **Secrets vault** — Railway Variables confirmed as production store; shared team vault: **TBD**.
 
 ---
 
@@ -84,7 +84,7 @@ Legacy note: Railway may still list `JUDGE_PASSWORD_HASH`; product auth is the `
 | Issue | Severity | Status |
 |-------|----------|--------|
 | Scoreboard showed event name in `competitor_name` (“Orlando Spring Meet” / Camry / total 191) | Medium (data) | **Fixed** — bad submitted row, not a query/JS mapping bug. Railway `scores.id=7` checked 2026-08-07: `competitor_name=Jordan Hale`, `vehicle_make=Toyota`. List view no longer shows stale judge `placement` (rank-only). *Re-verify:* scoreboard for Orlando / that total shows Jordan Hale. |
-| Other live rows with make `Toyo` (e.g. Camry scores) | Low | Likely judge-entered typos, not the same id=7 bug. **TBD — confirm with Amar/Olawale** if cleanup needed. |
+| Other live rows with make `Toyo` (e.g. Camry scores) | Low | Likely judge-entered typos, not the same id=7 bug. **TBD** if cleanup needed. |
 | Paper-sheet upload 413 (nginx 1 MB default vs app 12 MB) | High (upload path) | **Fixed on live** 2026-08-07; **git `main` may still lack** `nginx.template.conf` / start-cmd change — commit/sync. *Verify:* upload ~2 MB+ sheet on live after deploy matching git. |
 | Scoreboard detail click did nothing | Medium | **Fixed** (`7c93770`) — overlay panel + cache-bust. *Verify:* click competitor → detail opens. |
 | Offline draft does not restore paper-sheet file | Low / known limit | Open (by design — `sessionStorage` can’t hold files). Documented in README. |
@@ -140,19 +140,19 @@ Follow **README → “Railway deploy”** exactly (MySQL plugin vars, `NIXPACKS
 
 1. **Commit and push** the live nginx/PHP upload-limit fix (`nginx.template.conf`, `nixpacks.toml`, README note) so `main` matches production.
 2. **Visually verify** scoreboard detail: Width (and other stage metrics) not clipped; SVG static pins render on a scored competitor with markers.
-3. **Chase Amar** on open question (2026-08-07): should pins 1–4 map to Width/Height/Depth/Ambience?
+3. **Chase client** on open question (2026-08-07): should pins 1–4 map to Width/Height/Depth/Ambience?
 4. **Re-confirm** scoreboard Orlando / total-191 row still shows Jordan Hale (regression check after any seed re-runs).
 5. **Align README** email section with admin-only send (remove leftover auto-email wording).
-6. **Rotate** production staff passwords away from seed defaults if not already done; document where the team stores them (**TBD — confirm with Olawale**).
+6. **Rotate** production staff passwords away from seed defaults if not already done; document where the team stores them (**TBD**).
 7. Optional cleanup: confirm whether Railway `JUDGE_PASSWORD_HASH` can be removed; fix or accept `Toyo` make typos on live rows.
 
 **Who to contact**
 
 | Topic | Contact |
 |-------|---------|
-| Client / product intent (markers, scoring rules, data cleanup) | **Amar** |
-| Technical handoff, Railway, repo, deploy | **Olawale** (repo `walosha/Florida_Sound_Quality`) |
-| Anything undocumented above | **TBD — confirm with Amar/Olawale** |
+| Client / product intent (markers, scoring rules, data cleanup) | **TBD** |
+| Technical handoff, Railway, repo, deploy | **TBD** (repo `walosha/Florida_Sound_Quality`) |
+| Anything undocumented above | **TBD** |
 
 ---
 
@@ -168,7 +168,7 @@ Follow **README → “Railway deploy”** exactly (MySQL plugin vars, `NIXPACKS
 | Schema | `/schema.sql` |
 | Env key template | `/.env.example` |
 | Railway project | `florida-sound-quality` (production environment) |
-| Cursor chat — SVG markers / Amar question | [Soundstage SVG markers](dc39c9f2-ab13-4eeb-9028-275d19901ca0) |
+| Cursor chat — SVG markers / client question | [Soundstage SVG markers](dc39c9f2-ab13-4eeb-9028-275d19901ca0) |
 | Cursor chat — staff-only scoreboard | [Competitor and judge flows](9fc8902c-9a3e-46ee-be40-0a85f5f4607e) |
 | Cursor chat — scoreboard detail click fix | [Scoreboard competitor details](17bd236b-ccea-4e5b-b127-9f0c83decfc9) |
-| Slack threads for decisions | **None found in repo/transcripts — TBD — confirm with Olawale** |
+| Slack threads for decisions | **None found in repo/transcripts — TBD** |
