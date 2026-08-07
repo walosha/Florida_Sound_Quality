@@ -217,7 +217,9 @@ function homePathForRole(string $role): string
 }
 
 /**
- * Client IP for rate limiting (respects X-Forwarded-For from Railway).
+ * Client IP for rate limiting.
+ * Trusts the first X-Forwarded-For hop — valid when a reverse proxy (e.g. Railway)
+ * overwrites that header; do not rely on this behind an untrusted edge.
  */
 function clientIp(): string
 {
@@ -293,6 +295,76 @@ function recordFailedLogin(string $ip): void
 function clearLoginAttempts(string $ip): void
 {
     dbQuery('DELETE FROM rate_limit WHERE ip_address = ?', [$ip]);
+}
+
+/**
+ * Namespaced rate_limit key for registration (fits VARCHAR(45) for IPv6).
+ */
+function registrationRateLimitKey(string $ip): string
+{
+    $key = 'reg:' . $ip;
+    if (strlen($key) <= 45) {
+        return $key;
+    }
+    return 'reg:' . substr(hash('sha256', $ip), 0, 41);
+}
+
+/**
+ * True if this IP has hit the public registration rate limit.
+ */
+function isRegistrationRateLimited(string $ip): bool
+{
+    $row = dbFetchOne(
+        'SELECT attempts, UNIX_TIMESTAMP(last_attempt) AS last_ts
+         FROM rate_limit WHERE ip_address = ?',
+        [registrationRateLimitKey($ip)]
+    );
+    if ($row === null) {
+        return false;
+    }
+    $elapsed = time() - (int) $row['last_ts'];
+    if ($elapsed >= REGISTRATION_WINDOW_SECONDS) {
+        return false;
+    }
+    return (int) $row['attempts'] >= REGISTRATION_MAX_ATTEMPTS;
+}
+
+/**
+ * Record a registration attempt (success or validation failure after CSRF).
+ */
+function recordRegistrationAttempt(string $ip): void
+{
+    $key = registrationRateLimitKey($ip);
+    $row = dbFetchOne(
+        'SELECT attempts, UNIX_TIMESTAMP(last_attempt) AS last_ts
+         FROM rate_limit WHERE ip_address = ?',
+        [$key]
+    );
+
+    if ($row === null) {
+        dbQuery(
+            'INSERT INTO rate_limit (ip_address, attempts, last_attempt)
+             VALUES (?, 1, CURRENT_TIMESTAMP)',
+            [$key]
+        );
+        return;
+    }
+
+    $elapsed = time() - (int) $row['last_ts'];
+    if ($elapsed >= REGISTRATION_WINDOW_SECONDS) {
+        dbQuery(
+            'UPDATE rate_limit SET attempts = 1, last_attempt = CURRENT_TIMESTAMP
+             WHERE ip_address = ?',
+            [$key]
+        );
+        return;
+    }
+
+    dbQuery(
+        'UPDATE rate_limit SET attempts = attempts + 1, last_attempt = CURRENT_TIMESTAMP
+         WHERE ip_address = ?',
+        [$key]
+    );
 }
 
 /**

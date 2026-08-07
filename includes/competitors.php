@@ -94,6 +94,8 @@ function findCompetitorById(int $id): ?array
 }
 
 /**
+ * Bounded listing for ad-hoc use. Prefer listAdminCompetitors() / listJudgeCompetitors().
+ *
  * @return list<array<string, mixed>>
  */
 function listCompetitors(): array
@@ -102,7 +104,8 @@ function listCompetitors(): array
         'SELECT c.*, u.name AS created_by_name
          FROM competitors c
          LEFT JOIN users u ON u.id = c.created_by_user_id
-         ORDER BY c.created_at DESC, c.id DESC'
+         ORDER BY c.created_at DESC, c.id DESC
+         LIMIT 500'
     );
 }
 

@@ -56,9 +56,14 @@ function validateScoreSubmission(array $input): array
         $val = trim((string) ($input[$key] ?? ''));
         if ($val === '') {
             $errors[$key] = "{$label} is required.";
-        } else {
-            $data[$key] = $val;
+            continue;
         }
+        // submission_uuid is format-checked below; other strings map to VARCHAR(255).
+        if ($key !== 'submission_uuid' && mb_strlen($val) > 255) {
+            $errors[$key] = "{$label} is too long.";
+            continue;
+        }
+        $data[$key] = $val;
     }
 
     if (isset($data['submission_uuid']) && !preg_match(
@@ -123,10 +128,15 @@ function validateScoreSubmission(array $input): array
         }
     }
 
-    // Notes — optional text
+    // Notes — optional text (cap to protect DB / PDF / email memory)
     foreach (['tonal_notes', 'stage_notes', 'imaging_notes', 'noise_notes', 'listening_notes'] as $key) {
         $val = trim((string) ($input[$key] ?? ''));
-        $data[$key] = $val === '' ? null : $val;
+        if (mb_strlen($val) > 2000) {
+            $errors[$key] = 'Notes are too long (max 2000 characters).';
+            $data[$key] = null;
+        } else {
+            $data[$key] = $val === '' ? null : $val;
+        }
     }
 
     // Sound-stage diagram pins — optional visual layer (not scores).

@@ -28,7 +28,11 @@ $competitor = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrf($_POST['csrf_token'] ?? null)) {
         $formError = 'Invalid request. Please try again.';
+    } elseif (isRegistrationRateLimited(clientIp())) {
+        $formError = 'Too many registration attempts. Please try again in an hour.';
     } else {
+        recordRegistrationAttempt(clientIp());
+
         foreach (array_keys($values) as $key) {
             $values[$key] = trim((string) ($_POST[$key] ?? ''));
         }

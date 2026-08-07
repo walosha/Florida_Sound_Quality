@@ -141,10 +141,8 @@ $recentCompetitors = [];
 $recentScores = [];
 
 if ($section === 'overview') {
-    $recentCompetitors = listAdminCompetitors(1, 10)['rows'];
-    $recentCompetitors = array_slice($recentCompetitors, 0, 5);
-    $recentScores = listSubmittedScores(1, 10)['rows'];
-    $recentScores = array_slice($recentScores, 0, 5);
+    $recentCompetitors = listAdminCompetitors(1, 5)['rows'];
+    $recentScores = listSubmittedScores(1, 5)['rows'];
 } elseif ($section === 'competitors') {
     $competitors = listAdminCompetitors($pager['page'], $pager['per_page']);
 } elseif ($section === 'scores') {

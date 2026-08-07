@@ -46,12 +46,18 @@ try {
     exit;
 }
 
-$eventSlug = preg_replace('/[^a-zA-Z0-9_-]+/', '-', (string) $score['event_name']) ?: 'event';
-$nameSlug = preg_replace('/[^a-zA-Z0-9_-]+/', '-', (string) $score['competitor_name']) ?: 'competitor';
+$eventSlug = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', (string) $score['event_name']) ?: 'event';
+$nameSlug = preg_replace('/[^a-zA-Z0-9_-]+/u', '-', (string) $score['competitor_name']) ?: 'competitor';
 $filename = 'FSQ-scorecard-' . $eventSlug . '-' . $nameSlug . '.pdf';
+// ASCII-only fallback for legacy clients; RFC 5987 filename* for Unicode-safe names.
+$asciiFilename = preg_replace('/[^\x20-\x7E]/', '', $filename) ?: 'FSQ-scorecard.pdf';
+$asciiFilename = str_replace(['"', '\\'], '', $asciiFilename);
 
 header('Content-Type: application/pdf');
-header('Content-Disposition: attachment; filename="' . $filename . '"');
+header(
+    'Content-Disposition: attachment; filename="' . $asciiFilename . '"; filename*=UTF-8\'\''
+    . rawurlencode($filename)
+);
 header('Content-Length: ' . (string) strlen($pdf));
 header('Cache-Control: no-store');
 echo $pdf;

@@ -16,7 +16,10 @@ require_once __DIR__ . '/pagination.php';
 function listEvents(): array
 {
     return dbFetchAll(
-        'SELECT * FROM events ORDER BY event_date DESC, name ASC, id DESC'
+        'SELECT id, name, event_date
+         FROM events
+         ORDER BY event_date DESC, name ASC, id DESC
+         LIMIT 200'
     );
 }
 
