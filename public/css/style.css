@@ -212,6 +212,7 @@ input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="date"],
+input[type="number"],
 textarea,
 .stepper-value {
   display: block;
@@ -223,6 +224,20 @@ textarea,
   border: 0;
   border-radius: 0;
   outline: none;
+}
+
+/* Match text fields: hide native number spinners, keep same box metrics */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 input:focus-visible,
@@ -306,10 +321,11 @@ input.is-invalid {
   font-size: 0.85rem;
 }
 
-/* Sound-stage diagrams + pins (visual only) */
+/* Sound-stage diagrams + pins (visual only) — always stacked for readable artwork */
 .stage-diagrams {
-  display: grid;
-  gap: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
   margin: 0.5rem 0 1.1rem;
 }
 
@@ -343,14 +359,13 @@ input.is-invalid {
   display: block;
   width: 100%;
   height: auto;
-  max-height: min(52vw, 280px);
+  max-height: none;
   cursor: crosshair;
 }
 
 .stage-diagram-svg.is-static {
   cursor: default;
   pointer-events: none;
-  max-height: min(48vw, 240px);
 }
 
 .stage-diagram-svg.is-dragging {
@@ -371,16 +386,6 @@ input.is-invalid {
 
 .score-detail-diagrams .stage-diagram-title {
   margin-bottom: 0.4rem;
-}
-
-@media (min-width: 720px) {
-  .stage-diagrams {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .stage-diagram-svg {
-    max-height: 220px;
-  }
 }
 
 .field-upload input[type="file"] {
