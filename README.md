@@ -103,6 +103,7 @@ cat migrations/2026-08-05_users_competitors_auth.sql | railway connect MySQL --s
 cat seed.sql | railway connect MySQL --ssh   # seeds admin + judge (+ sample competitors)
 cat migrations/2026-08-05_sync_score_competitor_denorm.sql | railway connect MySQL --ssh
 cat migrations/2026-08-05_phase5_polish.sql | railway connect MySQL --ssh
+cat migrations/2026-08-07_stage_markers.sql | railway connect MySQL --ssh
 ```
 
 6. Generate a public domain on the web service. Optional: set `APP_BASE_URL` to that public URL for a stable registration link.
@@ -165,7 +166,7 @@ Bucket stores:
 | `AWS_DEFAULT_REGION` | Usually `auto` |
 | `AWS_S3_URL_STYLE` | `virtual-host` (Railway default) |
 
-Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is saved on `scores.paper_sheet_key` when upload succeeds.
+Accepted paper sheet types: JPEG, PNG, WebP, HEIC · max 12 MB. Object key is saved on `scores.paper_sheet_key` when upload succeeds. Railway/Nixpacks: `nginx.template.conf` raises `client_max_body_size` (and PHP upload limits) so nginx does not 413 before PHP sees the file.
 
 ## Scoreboard (staff only)
 

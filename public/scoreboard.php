@@ -20,7 +20,7 @@ $home = homePathForRole($user['role'] ?? 'judge');
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css?v=4">
+    <link rel="stylesheet" href="/css/style.css?v=5">
 </head>
 <body class="page-scoreboard">
     <header class="app-header">
@@ -78,6 +78,7 @@ $home = homePathForRole($user['role'] ?? 'judge');
         </div>
     </div>
 
-    <script src="/js/scoreboard.js?v=4" defer></script>
+    <script src="/js/score-detail-panel.js?v=5" defer></script>
+    <script src="/js/scoreboard.js?v=5" defer></script>
 </body>
 </html>

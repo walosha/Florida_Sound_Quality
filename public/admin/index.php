@@ -166,7 +166,7 @@ $pageTitle = $sections[$section] . ' — Admin';
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=5">
 </head>
 <body class="page-admin">
     <div class="admin-shell">
@@ -269,15 +269,38 @@ $pageTitle = $sections[$section] . ' — Admin';
                             <?php else: ?>
                                 <ul class="admin-mini-list">
                                     <?php foreach ($recentCompetitors as $row): ?>
-                                        <?php $eff = competitorEffectiveStatus($row); ?>
+                                        <?php
+                                        $eff = competitorEffectiveStatus($row);
+                                        $name = trim((string) ($row['name'] ?? ''));
+                                        $scoreId = !empty($row['score_id']) ? (int) $row['score_id'] : 0;
+                                        ?>
                                         <li>
-                                            <div>
-                                                <strong><?= htmlspecialchars(trim((string) ($row['name'] ?? '')) !== '' ? (string) $row['name'] : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
-                                                <div class="cell-sub"><?= htmlspecialchars(competitorVehicleLabel($row), ENT_QUOTES, 'UTF-8') ?></div>
-                                            </div>
-                                            <span class="status-pill status-<?= htmlspecialchars($eff, ENT_QUOTES, 'UTF-8') ?>">
-                                                <?= htmlspecialchars(competitorStatusLabel($eff), ENT_QUOTES, 'UTF-8') ?>
-                                            </span>
+                                            <button
+                                                type="button"
+                                                class="admin-mini-btn"
+                                                data-open-detail
+                                                <?php if ($scoreId > 0): ?>
+                                                    data-score-id="<?= $scoreId ?>"
+                                                <?php else: ?>
+                                                    data-name="<?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-email="<?= htmlspecialchars((string) ($row['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-vehicle-year="<?= htmlspecialchars((string) ($row['vehicle_year'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-vehicle-make="<?= htmlspecialchars((string) ($row['vehicle_make'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-vehicle-model="<?= htmlspecialchars((string) ($row['vehicle_model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-vehicle-color="<?= htmlspecialchars((string) ($row['vehicle_color'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-status="<?= htmlspecialchars($eff, ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-status-label="<?= htmlspecialchars(competitorStatusLabel($eff), ENT_QUOTES, 'UTF-8') ?>"
+                                                    data-registered-at="<?= htmlspecialchars((string) ($row['registered_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                <?php endif; ?>
+                                            >
+                                                <span class="admin-mini-btn-main">
+                                                    <strong><?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <span class="cell-sub"><?= htmlspecialchars(competitorVehicleLabel($row), ENT_QUOTES, 'UTF-8') ?></span>
+                                                </span>
+                                                <span class="status-pill status-<?= htmlspecialchars($eff, ENT_QUOTES, 'UTF-8') ?>">
+                                                    <?= htmlspecialchars(competitorStatusLabel($eff), ENT_QUOTES, 'UTF-8') ?>
+                                                </span>
+                                            </button>
                                         </li>
                                     <?php endforeach; ?>
                                 </ul>
@@ -295,11 +318,18 @@ $pageTitle = $sections[$section] . ' — Admin';
                                 <ul class="admin-mini-list">
                                     <?php foreach ($recentScores as $score): ?>
                                         <li>
-                                            <div>
-                                                <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                                                <div class="cell-sub"><?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?></div>
-                                            </div>
-                                            <strong class="admin-mini-total"><?= (int) $score['grand_total'] ?></strong>
+                                            <button
+                                                type="button"
+                                                class="admin-mini-btn"
+                                                data-open-detail
+                                                data-score-id="<?= (int) $score['id'] ?>"
+                                            >
+                                                <span class="admin-mini-btn-main">
+                                                    <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                                    <span class="cell-sub"><?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                                                </span>
+                                                <strong class="admin-mini-total"><?= (int) $score['grand_total'] ?></strong>
+                                            </button>
                                         </li>
                                     <?php endforeach; ?>
                                 </ul>
@@ -330,7 +360,7 @@ $pageTitle = $sections[$section] . ' — Admin';
 
                 <?php elseif ($section === 'competitors'): ?>
                     <section class="admin-section">
-                        <p class="page-lead">Name, vehicle, status. Download or email a PDF scorecard when a score is ready.</p>
+                        <p class="page-lead">Name, vehicle, status. Click a competitor to view full details. Download or email a PDF scorecard when a score is ready.</p>
                         <?php if ((int) $competitors['total'] === 0): ?>
                             <p class="empty-note">No competitors yet. Share the <a href="/admin/?section=invites">registration link</a>.</p>
                         <?php else: ?>
@@ -362,21 +392,65 @@ $pageTitle = $sections[$section] . ' — Admin';
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <strong><?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
-                                                    <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <button
+                                                        type="button"
+                                                        class="admin-name-btn"
+                                                        data-open-detail
+                                                        <?php if ($hasScore): ?>
+                                                            data-score-id="<?= (int) $row['score_id'] ?>"
+                                                        <?php else: ?>
+                                                            data-name="<?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-vehicle-year="<?= htmlspecialchars((string) ($row['vehicle_year'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-vehicle-make="<?= htmlspecialchars((string) ($row['vehicle_make'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-vehicle-model="<?= htmlspecialchars((string) ($row['vehicle_model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-vehicle-color="<?= htmlspecialchars((string) ($row['vehicle_color'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-status="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-status-label="<?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?>"
+                                                            data-registered-at="<?= htmlspecialchars((string) ($row['registered_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                        <?php endif; ?>
+                                                    >
+                                                        <strong><?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?></strong>
+                                                        <span class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></span>
+                                                    </button>
                                                 </td>
                                                 <td><?= htmlspecialchars($email !== '' ? $email : '—', ENT_QUOTES, 'UTF-8') ?></td>
                                                 <td>
                                                     <?php if ($hasScore): ?>
-                                                        <strong><?= (int) $row['grand_total'] ?></strong><span class="total-max"> / 230</span>
-                                                        <div class="cell-sub"><?= htmlspecialchars((string) ($row['score_event_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                                        <button
+                                                            type="button"
+                                                            class="admin-name-btn"
+                                                            data-open-detail
+                                                            data-score-id="<?= (int) $row['score_id'] ?>"
+                                                        >
+                                                            <strong><?= (int) $row['grand_total'] ?></strong><span class="total-max"> / 230</span>
+                                                            <span class="cell-sub"><?= htmlspecialchars((string) ($row['score_event_name'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span>
+                                                        </button>
                                                     <?php else: ?>
                                                         <span class="cell-muted">—</span>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <?php if ($hasScore): ?>
-                                                        <div class="admin-actions">
+                                                    <div class="admin-actions">
+                                                        <button
+                                                            type="button"
+                                                            class="btn-secondary"
+                                                            data-open-detail
+                                                            <?php if ($hasScore): ?>
+                                                                data-score-id="<?= (int) $row['score_id'] ?>"
+                                                            <?php else: ?>
+                                                                data-name="<?= htmlspecialchars($name !== '' ? $name : 'Unnamed', ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-email="<?= htmlspecialchars($email, ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-vehicle-year="<?= htmlspecialchars((string) ($row['vehicle_year'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-vehicle-make="<?= htmlspecialchars((string) ($row['vehicle_make'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-vehicle-model="<?= htmlspecialchars((string) ($row['vehicle_model'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-vehicle-color="<?= htmlspecialchars((string) ($row['vehicle_color'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-status="<?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-status-label="<?= htmlspecialchars(competitorStatusLabel($status), ENT_QUOTES, 'UTF-8') ?>"
+                                                                data-registered-at="<?= htmlspecialchars((string) ($row['registered_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                                            <?php endif; ?>
+                                                        >View details</button>
+                                                        <?php if ($hasScore): ?>
                                                             <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= (int) $row['id'] ?>">Download PDF</a>
                                                             <form method="post" action="/admin/?section=competitors" class="inline-form">
                                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
@@ -385,14 +459,16 @@ $pageTitle = $sections[$section] . ' — Admin';
                                                                 <input type="hidden" name="competitor_id" value="<?= (int) $row['id'] ?>">
                                                                 <button type="submit" class="btn-secondary"><?= $sentAt ? 'Resend email' : 'Send email' ?></button>
                                                             </form>
-                                                        </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <?php if ($hasScore): ?>
                                                         <?php if ($sentAt): ?>
                                                             <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
                                                         <?php else: ?>
                                                             <div class="cell-sub cell-warn">Not sent</div>
                                                         <?php endif; ?>
                                                     <?php else: ?>
-                                                        <span class="cell-muted">No score yet</span>
+                                                        <div class="cell-sub cell-muted">No score yet</div>
                                                     <?php endif; ?>
                                                 </td>
                                             </tr>
@@ -406,7 +482,7 @@ $pageTitle = $sections[$section] . ' — Admin';
 
                 <?php elseif ($section === 'scores'): ?>
                     <section class="admin-section">
-                        <p class="page-lead">Scores grouped by competitor (one score each). Send PDF scorecards when ready.</p>
+                        <p class="page-lead">Scores grouped by competitor (one score each). Click a row to view the full breakdown. Send PDF scorecards when ready.</p>
                         <?php if ((int) $scores['total'] === 0): ?>
                             <p class="empty-note">No scores submitted yet.</p>
                         <?php else: ?>
@@ -431,9 +507,16 @@ $pageTitle = $sections[$section] . ' — Admin';
                                             ?>
                                             <tr>
                                                 <td>
-                                                    <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                                                    <div class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></div>
-                                                    <div class="cell-sub"><?= htmlspecialchars((string) $score['competitor_email'], ENT_QUOTES, 'UTF-8') ?></div>
+                                                    <button
+                                                        type="button"
+                                                        class="admin-name-btn"
+                                                        data-open-detail
+                                                        data-score-id="<?= (int) $score['id'] ?>"
+                                                    >
+                                                        <strong><?= htmlspecialchars((string) $score['competitor_name'], ENT_QUOTES, 'UTF-8') ?></strong>
+                                                        <span class="cell-sub"><?= htmlspecialchars($vehicle, ENT_QUOTES, 'UTF-8') ?></span>
+                                                        <span class="cell-sub"><?= htmlspecialchars((string) $score['competitor_email'], ENT_QUOTES, 'UTF-8') ?></span>
+                                                    </button>
                                                 </td>
                                                 <td>
                                                     <?= htmlspecialchars((string) $score['event_name'], ENT_QUOTES, 'UTF-8') ?>
@@ -444,12 +527,25 @@ $pageTitle = $sections[$section] . ' — Admin';
                                                 </td>
                                                 <td><?= htmlspecialchars((string) $score['judge_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                                 <td>
-                                                    <strong><?= (int) $score['grand_total'] ?></strong><span class="total-max"> / 230</span>
-                                                    <div class="cell-sub">Tonal <?= (int) $score['tonal_total'] ?> · Stage <?= (int) $score['stage_total'] ?></div>
+                                                    <button
+                                                        type="button"
+                                                        class="admin-name-btn"
+                                                        data-open-detail
+                                                        data-score-id="<?= (int) $score['id'] ?>"
+                                                    >
+                                                        <strong><?= (int) $score['grand_total'] ?></strong><span class="total-max"> / 230</span>
+                                                        <span class="cell-sub">Tonal <?= (int) $score['tonal_total'] ?> · Stage <?= (int) $score['stage_total'] ?></span>
+                                                    </button>
                                                 </td>
                                                 <td>
-                                                    <?php if ($cid > 0): ?>
-                                                        <div class="admin-actions">
+                                                    <div class="admin-actions">
+                                                        <button
+                                                            type="button"
+                                                            class="btn-secondary"
+                                                            data-open-detail
+                                                            data-score-id="<?= (int) $score['id'] ?>"
+                                                        >View details</button>
+                                                        <?php if ($cid > 0): ?>
                                                             <a class="btn-secondary" href="/admin/scorecard.php?competitor_id=<?= $cid ?>">Download PDF</a>
                                                             <form method="post" action="/admin/?section=scores" class="inline-form">
                                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($token, ENT_QUOTES, 'UTF-8') ?>">
@@ -458,14 +554,16 @@ $pageTitle = $sections[$section] . ' — Admin';
                                                                 <input type="hidden" name="competitor_id" value="<?= $cid ?>">
                                                                 <button type="submit" class="btn-secondary"><?= $sentAt ? 'Resend email' : 'Send email' ?></button>
                                                             </form>
-                                                        </div>
+                                                        <?php else: ?>
+                                                            <span class="cell-muted">Legacy score (no competitor link)</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <?php if ($cid > 0): ?>
                                                         <?php if ($sentAt): ?>
                                                             <div class="cell-sub">Sent <?= htmlspecialchars((string) $sentAt, ENT_QUOTES, 'UTF-8') ?></div>
                                                         <?php else: ?>
                                                             <div class="cell-sub cell-warn">Not sent</div>
                                                         <?php endif; ?>
-                                                    <?php else: ?>
-                                                        <span class="cell-muted">Legacy score (no competitor link)</span>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td class="cell-muted"><?= htmlspecialchars((string) ($score['created_at'] ?? ''), ENT_QUOTES, 'UTF-8') ?></td>
@@ -617,6 +715,20 @@ $pageTitle = $sections[$section] . ' — Admin';
 
     <div class="admin-backdrop" id="admin-backdrop" hidden></div>
 
+    <div id="score-detail" class="score-detail" hidden>
+        <button type="button" class="score-detail-backdrop" id="score-detail-backdrop" aria-label="Close details"></button>
+        <div class="score-detail-panel" role="dialog" aria-modal="true" aria-labelledby="score-detail-title">
+            <div class="score-detail-toolbar">
+                <button type="button" class="btn-secondary" id="score-detail-close">Close</button>
+            </div>
+            <div id="score-detail-body" class="score-detail-body">
+                <p class="score-detail-loading">Loading…</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/score-detail-panel.js?v=5" defer></script>
+    <script src="/js/admin-detail.js?v=5" defer></script>
     <script>
         (function () {
             var btn = document.getElementById('admin-menu-btn');
