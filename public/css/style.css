@@ -790,12 +790,72 @@ button[type="submit"]:disabled {
 }
 
 .admin-mini-list li {
+  padding: 0;
+  background: var(--bg-soft);
+}
+
+.admin-mini-btn {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  width: 100%;
   padding: 0.75rem 0.85rem;
-  background: var(--bg-soft);
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.admin-mini-btn:hover,
+.admin-mini-btn:focus-visible {
+  background: rgba(224, 112, 48, 0.08);
+  outline: none;
+}
+
+.admin-mini-btn:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent-hot);
+}
+
+.admin-mini-btn-main {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.admin-mini-btn-main .cell-sub {
+  display: block;
+}
+
+.admin-name-btn {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.admin-name-btn:hover strong,
+.admin-name-btn:focus-visible strong {
+  color: var(--accent-hot);
+}
+
+.admin-name-btn:focus-visible {
+  outline: 2px solid var(--accent-hot);
+  outline-offset: 2px;
+}
+
+.admin-name-btn .cell-sub {
+  display: block;
 }
 
 .admin-mini-total {
@@ -1463,15 +1523,29 @@ body.score-detail-open {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  width: 100%;
   padding: 1rem 1.1rem;
+  margin: 0;
+  font: inherit;
   color: inherit;
+  text-align: left;
   text-decoration: none;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
 }
 
 a.judge-competitor-link:hover,
-a.judge-competitor-link:focus-visible {
+a.judge-competitor-link:focus-visible,
+button.judge-competitor-link:hover,
+button.judge-competitor-link:focus-visible {
   background: var(--bg-soft);
   color: inherit;
+  outline: none;
+}
+
+button.judge-competitor-link:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent-hot);
 }
 
 .judge-competitor-main {

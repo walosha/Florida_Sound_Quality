@@ -85,7 +85,7 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Semi+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/style.css?v=5">
 </head>
 <body class="page-score">
     <header class="app-header">
@@ -102,17 +102,18 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
             <h1 class="page-title">Competitors</h1>
             <p class="page-lead">
                 Signed in as <?= htmlspecialchars($judge['name'], ENT_QUOTES, 'UTF-8') ?>.
-                Select a registered competitor to score.
+                Select a registered competitor to score, or tap a scored competitor to view details.
             </p>
 
             <?php if ((int) $competitors['total'] === 0): ?>
-                <p class="empty-note">No registered competitors yet. An admin must send invite links first.</p>
+                <p class="empty-note">No registered competitors yet. Share the registration link from admin.</p>
             <?php else: ?>
                 <ul class="judge-competitor-list">
                     <?php foreach ($competitors['rows'] as $row): ?>
                         <?php
                         $status = (string) $row['status'];
                         $isRegistered = $status === 'registered' && empty($row['score_id']);
+                        $scoreId = !empty($row['score_id']) ? (int) $row['score_id'] : 0;
                         $href = $isRegistered
                             ? '/score.php?competitor_id=' . (int) $row['id']
                             : null;
@@ -120,6 +121,13 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                         <li class="judge-competitor-card<?= $isRegistered ? '' : ' is-scored' ?>">
                             <?php if ($href !== null): ?>
                                 <a class="judge-competitor-link" href="<?= htmlspecialchars($href, ENT_QUOTES, 'UTF-8') ?>">
+                            <?php elseif ($scoreId > 0): ?>
+                                <button
+                                    type="button"
+                                    class="judge-competitor-link"
+                                    data-open-detail
+                                    data-score-id="<?= $scoreId ?>"
+                                >
                             <?php else: ?>
                                 <div class="judge-competitor-link">
                             <?php endif; ?>
@@ -139,6 +147,8 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
                                 </div>
                             <?php if ($href !== null): ?>
                                 </a>
+                            <?php elseif ($scoreId > 0): ?>
+                                </button>
                             <?php else: ?>
                                 </div>
                             <?php endif; ?>
@@ -372,5 +382,21 @@ function renderStepper(string $name, string $label, int $min, int $max, int $val
             <script src="/js/score-form.js" defer></script>
         <?php endif; ?>
     </main>
+
+    <?php if ($pageMode === 'list'): ?>
+        <div id="score-detail" class="score-detail" hidden>
+            <button type="button" class="score-detail-backdrop" id="score-detail-backdrop" aria-label="Close details"></button>
+            <div class="score-detail-panel" role="dialog" aria-modal="true" aria-labelledby="score-detail-title">
+                <div class="score-detail-toolbar">
+                    <button type="button" class="btn-secondary" id="score-detail-close">Close</button>
+                </div>
+                <div id="score-detail-body" class="score-detail-body">
+                    <p class="score-detail-loading">Loading…</p>
+                </div>
+            </div>
+        </div>
+        <script src="/js/score-detail-panel.js?v=5" defer></script>
+        <script src="/js/admin-detail.js?v=5" defer></script>
+    <?php endif; ?>
 </body>
 </html>
